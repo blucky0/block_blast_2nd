@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Puzzle Blast Online (Mobile Optimized)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK (Compat Version) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #1a1a2e;
+            color: white;
+            overflow: hidden;
+            touch-action: none;
+            margin: 0;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #header-bar {
+            height: 50px;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        /* PC 기본 레이아웃 */
+        #game-grid {
+            flex: 1;
+            display: grid;
+            gap: 6px;
+            padding: 6px;
+            box-sizing: border-box;
+            overflow: hidden;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            grid-template-areas: 
+                "me op1 op2 op3"
+                "me op4 op5 op6"
+                "me op7 op8 op9";
+        }
+
+        #slot-me { grid-area: me; }
+        #slot-op1 { grid-area: op1; }
+        #slot-op2 { grid-area: op2; }
+        #slot-op3 { grid-area: op3; }
+        #slot-op4 { grid-area: op4; }
+        #slot-op5 { grid-area: op5; }
+        #slot-op6 { grid-area: op6; }
+        #slot-op7 { grid-area: op7; }
+        #slot-op8 { grid-area: op8; }
+        #slot-op9 { grid-area: op9; }
+
+        /* [모바일 최적화] 화면 너비 768px 이하 */
+        @media (max-width: 768px) {
+            #game-grid {
+                display: flex;           
+                flex-direction: column;  
+                overflow-y: auto;        
+                padding: 10px;
+                padding-bottom: 40px;    
+                gap: 15px;               
+            }
+            #slot-me {
+                flex: 0 0 auto;          
+                height: 50vh;            
+                width: 100%;
+            }
+            .opponents-container {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr); 
+                gap: 8px;
+                width: 100%;
+                flex: 0 0 auto;
+            }
+            
+            /* [핵심] 모바일에서 상대방 슬롯 스타일 변경 */
+            .player-slot:not(.me) {
+                aspect-ratio: auto; 
+                height: 65px; /* 높이를 고정하여 명함처럼 만듦 */
+                background: #252538;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            
+            /* [핵심] 모바일에서 상대방 캔버스(게임화면) 숨김 */
+            .player-slot:not(.me) canvas {
+                display: none !important;
+            }
+
+            /* [핵심] 모바일 텍스트 정보 중앙 정렬 */
+            .player-slot:not(.me) .slot-info {
+                position: relative; /* 절대 위치 해제 */
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+            }
+
+            .player-slot:not(.me) .player-name { 
+                font-size: 13px; 
+                margin-bottom: 4px;
+                color: #fff;
+            }
+            .player-slot:not(.me) .player-score { 
+                font-size: 12px; 
+                color: #ffd700; /* 최고점수 강조색 */
+            }
+        }
+
+        @media (min-width: 769px) {
+            .opponents-container { display: contents; }
+        }
+
+        .player-slot {
+            background: #16213e;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .player-slot.me {
+            border-color: #e94560;
+            background: #1f2b4d;
+            border-width: 2px;
+        }
+
+        .slot-info {
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            z-index: 5;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+        .player-name { font-size: 14px; color: #aaa; font-weight: bold; }
+        .player-score { font-size: 20px; font-weight: bold; color: white; }
+        .player-high-score { font-size: 12px; color: #ffd700; margin-left: 5px; }
+
+        .player-slot.me .player-name {
+            cursor: pointer;
+            pointer-events: auto;
+            text-decoration: underline;
+            text-underline-offset: 4px;
+            color: #4db6ac;
+        }
+        .player-slot.me .player-name:hover { color: #80cbc4; }
+
+        .crisis-dot {
+            position: absolute;
+            top: 10px; right: 10px; width: 15px; height: 15px;
+            background-color: #ff0000; border-radius: 50%;
+            box-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000;
+            display: none; z-index: 20;
+            animation: blink-dot 0.8s infinite alternate;
+        }
+        @keyframes blink-dot {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0.3; transform: scale(0.8); }
+        }
+
+        .combo-popup {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 40px; font-weight: 900;
+            color: #ffd700;
+            text-shadow: 0 0 10px #ff4500;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0;
+            transition: transform 0.1s;
+        }
+        .combo-popup.animate {
+            animation: pop-up 1.5s ease-out forwards;
+        }
+        @keyframes pop-up {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -150%) scale(1.0); }
+        }
+
+        canvas { border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+        input {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 6px 10px;
+            border-radius: 6px; outline: none;
+            transition: 0.2s; width: 100px; font-size: 14px;
+        }
+        input:disabled { background: rgba(255,255,255,0.05); color: #777; border-color: transparent; }
+
+        .btn {
+            background: #e94560; color: white; border: none;
+            padding: 6px 15px; border-radius: 6px; cursor: pointer;
+            font-weight: bold; font-size: 14px; transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        
+        .btn-leave { background: #555; border: 1px solid #777; }
+        .btn-leave:hover { background: #777; }
+
+        .status-badge {
+            padding: 4px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: bold; display: inline-block;
+        }
+        .status-online { background: #00ff88; color: #004422; }
+        .status-offline { background: #ff4444; color: #white; }
+
+        .game-over-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            z-index: 30; display: none;
+        }
+        .game-over-overlay.show { display: flex; }
+    </style>
+</head>
+<body>
+
+    <div id="header-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <h1 style="font-size: 18px; font-weight:bold; color:#e94560;">Puzzle Blast 10P</h1>
+            <span id="connection-status" class="status-badge status-offline">LOBBY</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <input type="text" id="room-input" placeholder="Room Name" value="room1">
+            <button id="join-btn" class="btn" onclick="joinRoom()">Join</button>
+            <button id="leave-btn" class="btn btn-leave" onclick="leaveRoom()" style="display:none;">Leave</button>
+        </div>
+    </div>
+
+    <div id="game-grid">
+        <div class="player-slot me" id="slot-me">
+            <div class="slot-info">
+                <div class="player-name" onclick="editMyName()" title="Click to change name">
+                    <span id="my-name-display">Guest</span> ✎
+                </div>
+                <div class="player-score" id="my-score">0</div>
+                <div class="player-high-score" id="my-high-score">🏆 Best: 0</div>
+            </div>
+            <div id="crisis-dot" class="crisis-dot"></div>
+            <div id="combo-popup" class="combo-popup"></div>
+            
+            <canvas id="gameCanvas"></canvas>
+            <div id="my-game-over" class="game-over-overlay">
+                <h2 style="color:#e94560; font-size:30px;">GAME OVER</h2>
+                <button class="btn" onclick="resetGame()">RETRY</button>
+            </div>
+        </div>
+
+        <div class="opponents-container">
+            <div class="player-slot" id="slot-op1"><div class="slot-info"><div class="player-name" id="op1-name">Player 2</div><div class="player-score" id="op1-score">Waiting</div></div><canvas id="op1Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op2"><div class="slot-info"><div class="player-name" id="op2-name">Player 3</div><div class="player-score" id="op2-score">Waiting</div></div><canvas id="op2Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op3"><div class="slot-info"><div class="player-name" id="op3-name">Player 4</div><div class="player-score" id="op3-score">Waiting</div></div><canvas id="op3Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op4"><div class="slot-info"><div class="player-name" id="op4-name">Player 5</div><div class="player-score" id="op4-score">Waiting</div></div><canvas id="op4Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op5"><div class="slot-info"><div class="player-name" id="op5-name">Player 6</div><div class="player-score" id="op5-score">Waiting</div></div><canvas id="op5Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op6"><div class="slot-info"><div class="player-name" id="op6-name">Player 7</div><div class="player-score" id="op6-score">Waiting</div></div><canvas id="op6Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op7"><div class="slot-info"><div class="player-name" id="op7-name">Player 8</div><div class="player-score" id="op7-score">Waiting</div></div><canvas id="op7Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op8"><div class="slot-info"><div class="player-name" id="op8-name">Player 9</div><div class="player-score" id="op8-score">Waiting</div></div><canvas id="op8Canvas"></canvas></div>
+            <div class="player-slot" id="slot-op9"><div class="slot-info"><div class="player-name" id="op9-name">Player 10</div><div class="player-score" id="op9-score">Waiting</div></div><canvas id="op9Canvas"></canvas></div>
+        </div>
+    </div>
+
+<script>
+    function log(msg, isError = false) {
+        if(isError) console.error(`[System] ${msg}`);
+        else console.log(`[System] ${msg}`);
+    }
+
+    let firebaseConfig = {
+        apiKey: "AIzaSyDCSuyAVPaxGr7XwF3INUhNB4fz3vtoE-I",
+        authDomain: "my-block-test-b5cb2.firebaseapp.com",
+        projectId: "my-block-test-b5cb2",
+        storageBucket: "my-block-test-b5cb2.firebasestorage.app",
+        messagingSenderId: "332882436658",
+        appId: "1:332882436658:web:084f8b2d9423e23b53d22b",
+        measurementId: "G-FE436WZVP7"
+    };
+
+    if (typeof __firebase_config !== 'undefined') {
+        firebaseConfig = JSON.parse(__firebase_config);
+    }
+
+    const fixedAppId = 'puzzle-blast-v1';
+    
+    let auth, db;
+    let isFirebaseReady = false;
+    let currentUser = null;
+    let currentRoomId = null;
+    let unsubscribeRoom = null;
+    
+    let myName = "Guest";
+    let myScore = 0;
+    let myHighScore = 0;
+    
+    let comboCount = 0;
+    let lastOpponentsList = []; // [추가] 리사이징 대응을 위해 데이터 저장
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'clear') {
+            const baseFreq = 400 + (comboCount * 50);
+            osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq + 200, audioCtx.currentTime + 0.1);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        } else if (type === 'allclear') {
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(1200, audioCtx.currentTime + 0.1);
+            osc.type = 'triangle';
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+    }
+
+    try {
+        if (firebase.apps.length === 0 && firebaseConfig.apiKey) {
+            firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            isFirebaseReady = true;
+            log(`Firebase Configured.`);
+        } else if (firebase.apps.length > 0) {
+            auth = firebase.auth();
+            db = firebase.firestore();
+            isFirebaseReady = true;
+            log("Firebase already active.");
+        } else {
+            console.warn("Firebase config missing");
+        }
+    } catch (e) {
+        console.warn("Firebase Init Failed:", e);
+    }
+
+    // --- GAME CONSTANTS & STATE ---
+    const GRID_SIZE = 8;
+    const MAX_OPPONENTS = 9; 
+    
+    const SHAPES = [
+        { coords: [[0,0]], color: '#FF5733' },
+        { coords: [[0,0], [1,0]], color: '#33FF57' }, 
+        { coords: [[0,0], [0,1]], color: '#33FF57' },
+        { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' },
+        { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' },
+        { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' },
+        { coords: [[0,0], [0,1], [0,2], [0,3]], color: '#FF33A1' },
+        { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
+        { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' },
+        { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
+        { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
+        { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' },
+        { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' },
+        { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' },
+        { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' },
+        { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' },
+        { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' },
+        { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' },
+        { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' },
+        { coords: [[0,0], [1,1]], color: '#AAAAAA' },
+        { coords: [[0,1], [1,0]], color: '#AAAAAA' },
+        { coords: [[0,0], [1,1], [2,2]], color: '#888888' },
+        { coords: [[0,2], [1,1], [2,0]], color: '#888888' }
+    ];
+
+    const myCanvas = document.getElementById('gameCanvas');
+    const myCtx = myCanvas.getContext('2d');
+    
+    let myGrid = [];
+    
+    let handBlocks = [];
+    let draggingBlock = null;
+    let dragOffset = { x: 0, y: 0 };
+    let isGameOver = false;
+    let inputMode = 'mouse';
+    let lastValidDropPos = null;
+    let highlightLines = { rows: [], cols: [] };
+
+    let CELL_SIZE = 30;
+    const CELL_GAP = 2;
+    let boardX = 0, boardY = 0;
+
+    function init() {
+        resetLogic();
+        resizeAll();
+        window.addEventListener('resize', () => {
+            resizeAll();
+            // 화면 회전/리사이즈 시 텍스트 표시 방식 업데이트를 위해 재렌더링
+            if(lastOpponentsList.length > 0) renderOpponents(lastOpponentsList);
+        });
+        requestAnimationFrame(gameLoop);
+        
+        setTimeout(resizeAll, 100);
+        setTimeout(resizeAll, 500);
+        
+        window.addEventListener('beforeunload', () => {
+            if (currentUser && currentRoomId) {
+                db.doc(`artifacts/${fixedAppId}/public/data/block_puzzle_players/${currentUser.uid}`).delete();
+            }
+        });
+
+        if (isFirebaseReady) initAuth();
+    }
+
+    function resetLogic() {
+        myGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
+        myScore = 0;
+        comboCount = 0;
+        isGameOver = false;
+        highlightLines = { rows: [], cols: [] };
+        document.getElementById('my-score').innerText = 0;
+        document.getElementById('my-game-over').classList.remove('show');
+        updateCrisisAlert(); 
+        spawnBlocks();
+        if (isFirebaseReady && currentRoomId) syncState();
+    }
+
+    function resetGame() {
+        resetLogic();
+    }
+
+    function resizeAll() {
+        const slots = document.querySelectorAll('.player-slot');
+        slots.forEach((slot) => {
+            const canvas = slot.querySelector('canvas');
+            if(!canvas) return;
+            const rect = slot.getBoundingClientRect();
+            canvas.width = rect.width - 8;
+            canvas.height = rect.height - 35; 
+            if (slot.id === 'slot-me') {
+                calcBoardMetrics(canvas.width, canvas.height);
+                repositionHand();
+            }
+        });
+    }
+
+    function calcBoardMetrics(w, h) {
+        const maxBoardSize = Math.min(w, h * 0.65);
+        CELL_SIZE = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
+        const totalBoardSize = (CELL_SIZE * GRID_SIZE) + (CELL_GAP * (GRID_SIZE - 1));
+        boardX = (w - totalBoardSize) / 2;
+        boardY = 20;
+    }
+
+    function repositionHand() {
+        if (!handBlocks.length) return;
+        const sectionW = myCanvas.width / handBlocks.length;
+        const boardBottom = boardY + (CELL_SIZE * GRID_SIZE) + (CELL_GAP * (GRID_SIZE - 1));
+        const handY = boardBottom + (myCanvas.height - boardBottom) / 2;
+        handBlocks.forEach((b, i) => {
+            if (!b.isDragging && !b.isPlaced) {
+                b.baseX = sectionW * i + sectionW/2;
+                b.baseY = handY;
+                b.x = b.baseX;
+                b.y = b.baseY;
+            }
+        });
+    }
+
+    function spawnBlocks() {
+        handBlocks = [];
+        for(let i=0; i<3; i++) {
+            let shape;
+            if (Math.random() < 0.1) {
+                shape = SHAPES[0];
+            } else {
+                shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            }
+            handBlocks.push({ shape, x:0, y:0, baseX:0, baseY:0, scale: 0.6, isDragging: false, isPlaced: false });
+        }
+        repositionHand();
+        checkLoseCondition();
+    }
+
+    function checkLoseCondition() {
+        const active = handBlocks.filter(b => !b.isPlaced);
+        if(active.length === 0) return;
+        let possible = active.some(b => {
+            for(let r=0; r<GRID_SIZE; r++) {
+                for(let c=0; c<GRID_SIZE; c++) {
+                    if(canPlace(b.shape, r, c)) return true;
+                }
+            }
+            return false;
+        });
+        if(!possible) {
+            isGameOver = true;
+            document.getElementById('my-game-over').classList.add('show');
+        }
+    }
+
+    function canPlace(shape, r, c) {
+        for(let p of shape.coords) {
+            let nr = r + p[1], nc = c + p[0];
+            if(nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) return false;
+            if(myGrid[nr][nc] !== null) return false;
+        }
+        return true;
+    }
+
+    function calcPotentialClears(shape, r, c) {
+        const tempGrid = myGrid.map(row => [...row]);
+        shape.coords.forEach(p => {
+            const nr = r + p[1];
+            const nc = c + p[0];
+            if(nr>=0 && nr<GRID_SIZE && nc>=0 && nc<GRID_SIZE) {
+                tempGrid[nr][nc] = 1;
+            }
+        });
+        const rows = [];
+        const cols = [];
+        for(let i=0; i<GRID_SIZE; i++) {
+            if(tempGrid[i].every(val => val !== null)) rows.push(i);
+        }
+        for(let j=0; j<GRID_SIZE; j++) {
+            let full = true;
+            for(let i=0; i<GRID_SIZE; i++) {
+                if(tempGrid[i][j] === null) { full = false; break; }
+            }
+            if(full) cols.push(j);
+        }
+        return { rows, cols };
+    }
+
+    function updateCrisisAlert() {
+        let emptyCount = 0;
+        for(let r=0; r<GRID_SIZE; r++) {
+            for(let c=0; c<GRID_SIZE; c++) {
+                if(myGrid[r][c] === null) emptyCount++;
+            }
+        }
+        const totalCells = GRID_SIZE * GRID_SIZE;
+        const isCrisis = emptyCount < (totalCells * 0.3);
+        const dot = document.getElementById('crisis-dot');
+        dot.style.display = (isCrisis && !isGameOver) ? 'block' : 'none';
+    }
+
+    function placeBlock(block, r, c) {
+        block.shape.coords.forEach(p => { myGrid[r + p[1]][c + p[0]] = block.shape.color; });
+        block.isPlaced = true;
+        
+        let moveScore = block.shape.coords.length * 10;
+        
+        checkLines(moveScore);
+        updateCrisisAlert(); 
+        
+        if(handBlocks.every(b => b.isPlaced)) spawnBlocks();
+        else checkLoseCondition();
+    }
+
+    function checkLines(baseScore) {
+        let rows = [], cols = [];
+        for(let r=0; r<GRID_SIZE; r++) if(myGrid[r].every(c => c !== null)) rows.push(r);
+        for(let c=0; c<GRID_SIZE; c++) {
+            let full = true;
+            for(let r=0; r<GRID_SIZE; r++) if(myGrid[r][c] === null) full = false;
+            if(full) cols.push(c);
+        }
+        
+        const linesCleared = rows.length + cols.length;
+        
+        if(linesCleared > 0) {
+            playSound('clear');
+            comboCount++;
+            
+            let lineScore = linesCleared * 100;
+            let comboBonus = (comboCount - 1) * 50 * linesCleared; 
+            
+            myScore += baseScore + lineScore + comboBonus;
+            showPopup(`${comboCount} COMBO!`, '#ffd700');
+            
+            rows.forEach(r => myGrid[r].fill(null));
+            cols.forEach(c => { for(let r=0; r<GRID_SIZE; r++) myGrid[r][c] = null; });
+            
+            checkAllClear();
+            
+        } else {
+            comboCount = 0;
+            myScore += baseScore;
+        }
+
+        if(myScore > myHighScore) {
+            myHighScore = myScore;
+            document.getElementById('my-high-score').innerText = `🏆 Best: ${myHighScore}`;
+        }
+        document.getElementById('my-score').innerText = myScore;
+        
+        if (isFirebaseReady && currentRoomId) syncState();
+    }
+    
+    function checkAllClear() {
+        let isEmpty = true;
+        for(let r=0; r<GRID_SIZE; r++) {
+            for(let c=0; c<GRID_SIZE; c++) {
+                if(myGrid[r][c] !== null) {
+                    isEmpty = false;
+                    break;
+                }
+            }
+        }
+        
+        if(isEmpty) {
+            playSound('allclear');
+            myScore += 1000;
+            showPopup("ALL CLEAR!", "#00ffff");
+        }
+    }
+    
+    function showPopup(text, color) {
+        const popup = document.getElementById('combo-popup');
+        popup.innerText = text;
+        popup.style.color = color;
+        popup.classList.remove('animate');
+        void popup.offsetWidth; 
+        popup.classList.add('animate');
+    }
+
+    function getVisualOffset() { return inputMode === 'touch' ? 80 : 0; }
+
+    function gameLoop() {
+        drawGame(myCtx, myCanvas.width, myCanvas.height, myGrid, handBlocks, draggingBlock);
+        requestAnimationFrame(gameLoop);
+    }
+
+    function drawGame(ctx, w, h, gridData, hands, dragging) {
+        ctx.fillStyle = '#1f2b4d'; ctx.fillRect(0, 0, w, h);
+        
+        drawBoard(ctx, gridData, highlightLines);
+
+        if (hands) hands.forEach(b => { if (!b.isPlaced && !b.isDragging) drawShape(ctx, b.shape, b.x, b.y, b.scale, false); });
+        
+        if (dragging) {
+            const pos = getDropPos(dragging);
+            highlightLines = { rows: [], cols: [] };
+
+            if(pos && canPlace(dragging.shape, pos.r, pos.c)) {
+                highlightLines = calcPotentialClears(dragging.shape, pos.r, pos.c);
+                drawGhost(ctx, pos.r, pos.c, dragging.shape);
+                lastValidDropPos = pos;
+            } else {
+                lastValidDropPos = null;
+            }
+            drawShape(ctx, dragging.shape, dragging.x, dragging.y - getVisualOffset(), 1.0, true);
+        } else {
+            highlightLines = { rows: [], cols: [] };
+        }
+    }
+
+    function drawBoard(ctx, gridData, highlights) {
+        for(let r=0; r<GRID_SIZE; r++) {
+            for(let c=0; c<GRID_SIZE; c++) {
+                const x = boardX + c * (CELL_SIZE + CELL_GAP);
+                const y = boardY + r * (CELL_SIZE + CELL_GAP);
+                ctx.fillStyle = '#16213e'; ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                if(gridData[r][c]) {
+                    ctx.globalAlpha = 0.9;
+                    ctx.fillStyle = gridData[r][c]; ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(x, y, CELL_SIZE, 4);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+
+        if (highlights && (highlights.rows.length > 0 || highlights.cols.length > 0)) {
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+            highlights.rows.forEach(r => {
+                const y = boardY + r * (CELL_SIZE + CELL_GAP);
+                const rowWidth = (CELL_SIZE + CELL_GAP) * GRID_SIZE - CELL_GAP;
+                ctx.fillRect(boardX, y, rowWidth, CELL_SIZE);
+            });
+            highlights.cols.forEach(c => {
+                const x = boardX + c * (CELL_SIZE + CELL_GAP);
+                const colHeight = (CELL_SIZE + CELL_GAP) * GRID_SIZE - CELL_GAP;
+                ctx.fillRect(x, boardY, CELL_SIZE, colHeight);
+            });
+        }
+    }
+
+    function drawShape(ctx, shape, cx, cy, scale, shadow) {
+        let minX=10, maxX=-10, minY=10, maxY=-10;
+        shape.coords.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+        const size = CELL_SIZE * scale, gap = CELL_GAP * scale;
+        const w = (maxX - minX + 1) * size + (maxX - minX) * gap;
+        const h = (maxY - minY + 1) * size + (maxY - minY) * gap;
+        const startX = cx - w / 2, startY = cy - h / 2;
+        if(shadow) { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,0,0,0.5)'; }
+        
+        ctx.globalAlpha = 0.85; 
+        
+        shape.coords.forEach(p => {
+            const bx = startX + p[0] * (size + gap), by = startY + p[1] * (size + gap);
+            ctx.fillStyle = shape.color; ctx.fillRect(bx, by, size, size);
+            ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(bx + 2, by + 2, size - 4, 4);
+        });
+        
+        ctx.globalAlpha = 1.0; 
+        ctx.shadowBlur = 0;
+    }
+
+    function drawGhost(ctx, r, c, shape) {
+        ctx.globalAlpha = 0.5;
+        shape.coords.forEach(p => {
+            const x = boardX + (c + p[0]) * (CELL_SIZE + CELL_GAP);
+            const y = boardY + (r + p[1]) * (CELL_SIZE + CELL_GAP);
+            ctx.fillStyle = 'white'; ctx.fillRect(x, y, CELL_SIZE, CELL_SIZE);
+            ctx.strokeStyle = shape.color; ctx.lineWidth = 2; ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
+        });
+        ctx.globalAlpha = 1.0;
+    }
+
+    function getDropPos(block) {
+        const visualsY = block.y - getVisualOffset();
+        let minX=10, maxX=-10, minY=10, maxY=-10;
+        block.shape.coords.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+        const shapeW = (maxX - minX + 1), shapeH = (maxY - minY + 1);
+        const relX = block.x - boardX, relY = visualsY - boardY;
+        const cellTotal = CELL_SIZE + CELL_GAP;
+        const rawC = (relX / cellTotal) - (shapeW - 1) / 2;
+        const rawR = (relY / cellTotal) - (shapeH - 1) / 2;
+        const c = Math.round(rawC), r = Math.round(rawR);
+        const diffC = Math.abs(rawC - c), diffR = Math.abs(rawR - r);
+        
+        const THRESHOLD = 0.65; 
+        if (diffC > THRESHOLD || diffR > THRESHOLD) return null;
+        return { r, c };
+    }
+
+    myCanvas.addEventListener('mousedown', e => { inputMode = 'mouse'; handleStart(e.offsetX, e.offsetY); });
+    myCanvas.addEventListener('mousemove', e => handleMove(e.offsetX, e.offsetY));
+    myCanvas.addEventListener('mouseup', handleEnd);
+    myCanvas.addEventListener('mouseleave', handleEnd);
+    myCanvas.addEventListener('touchstart', e => { e.preventDefault(); inputMode = 'touch'; const rect = myCanvas.getBoundingClientRect(); handleStart(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); }, {passive:false});
+    myCanvas.addEventListener('touchmove', e => { e.preventDefault(); const rect = myCanvas.getBoundingClientRect(); handleMove(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top); }, {passive:false});
+    myCanvas.addEventListener('touchend', e => { e.preventDefault(); handleEnd(); });
+
+    function handleStart(x, y) {
+        if(isGameOver) return;
+        for(let b of handBlocks) {
+            if(!b.isPlaced && Math.hypot(x - b.x, y - b.y) < 70) { 
+                draggingBlock = b; b.isDragging = true; b.scale = 1.0; 
+                dragOffset.x = x - b.x; dragOffset.y = y - b.y; return;
+            }
+        }
+    }
+
+    function handleMove(x, y) { if(draggingBlock) { draggingBlock.x = x - dragOffset.x; draggingBlock.y = y - dragOffset.y; } }
+    function handleEnd() {
+        if(draggingBlock) {
+            if(lastValidDropPos) placeBlock(draggingBlock, lastValidDropPos.r, lastValidDropPos.c);
+            else { draggingBlock.scale = 0.6; draggingBlock.x = draggingBlock.baseX; draggingBlock.y = draggingBlock.baseY; }
+            draggingBlock.isDragging = false; draggingBlock = null; lastValidDropPos = null;
+        }
+    }
+
+    function editMyName() {
+        const newName = prompt("Enter your name (Max 8 chars):", myName);
+        if (newName && newName.trim().length > 0) {
+            myName = newName.trim().substr(0, 8);
+            document.getElementById('my-name-display').innerText = myName;
+            if (isFirebaseReady && currentRoomId) syncState();
+        }
+    }
+
+    async function initAuth() {
+        try {
+            await auth.signInAnonymously();
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    myName = `User ${user.uid.substr(0,4)}`;
+                    document.getElementById('my-name-display').innerText = myName;
+                    const badge = document.getElementById('connection-status');
+                    badge.innerText = "LOBBY";
+                    badge.className = "status-badge status-offline";
+                }
+            });
+        } catch (error) {
+            console.error("Auth Failed:", error);
+        }
+    }
+
+    async function joinRoom() {
+        if (!isFirebaseReady) {
+            alert("⚠️ Firebase Config is missing.");
+            return;
+        }
+        if (!currentUser) {
+            alert("⚠️ Not logged in.");
+            return;
+        }
+        const roomInput = document.getElementById('room-input');
+        const rawName = roomInput.value.trim();
+        const roomName = rawName.toLowerCase();
+        if(!roomName) { alert("Please enter a room name."); return; }
+
+        const joinBtn = document.getElementById('join-btn');
+        joinBtn.innerText = "Connecting...";
+        joinBtn.disabled = true;
+        roomInput.disabled = true;
+
+        currentRoomId = roomName;
+        const badge = document.getElementById('connection-status');
+        badge.innerText = `ROOM: ${roomName}`;
+        badge.className = "status-badge status-online";
+        
+        await syncState();
+
+        if(unsubscribeRoom) unsubscribeRoom();
+
+        const collectionPath = `artifacts/${fixedAppId}/public/data/block_puzzle_players`;
+
+        unsubscribeRoom = db.collection(collectionPath)
+            .where('roomId', '==', currentRoomId)
+            .onSnapshot(snapshot => {
+                let opponents = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if(data.userId !== currentUser.uid) {
+                        opponents.push(data);
+                    }
+                });
+                
+                lastOpponentsList = opponents; // 데이터 저장
+                renderOpponents(opponents);
+                
+                joinBtn.style.display = 'none';
+                document.getElementById('leave-btn').style.display = 'inline-block';
+            }, error => {
+                console.error("Snapshot Error:", error);
+                alert("연결 끊김! 다시 시도해주세요.");
+                leaveRoom();
+            });
+    }
+
+    async function leaveRoom() {
+        if (currentUser && currentRoomId) {
+            try {
+                await db.doc(`artifacts/${fixedAppId}/public/data/block_puzzle_players/${currentUser.uid}`).delete();
+            } catch (e) {
+                console.error("Error removing document: ", e);
+            }
+        }
+        if(unsubscribeRoom) {
+            unsubscribeRoom();
+            unsubscribeRoom = null;
+        }
+        currentRoomId = null;
+        resetLogic();
+        renderOpponents([]);
+
+        const joinBtn = document.getElementById('join-btn');
+        const roomInput = document.getElementById('room-input');
+        const leaveBtn = document.getElementById('leave-btn');
+        const badge = document.getElementById('connection-status');
+
+        joinBtn.style.display = 'inline-block';
+        joinBtn.innerText = 'Join';
+        joinBtn.disabled = false;
+        joinBtn.style.background = '#e94560';
+        leaveBtn.style.display = 'none';
+        roomInput.disabled = false;
+        roomInput.value = '';
+        roomInput.placeholder = 'Enter Room Name';
+        badge.innerText = "LOBBY";
+        badge.className = "status-badge status-offline";
+    }
+
+    async function syncState() {
+        if(!currentUser || !currentRoomId) return;
+        const state = {
+            roomId: currentRoomId,
+            userId: currentUser.uid,
+            userName: myName, 
+            score: myScore,
+            highScore: myHighScore,
+            grid: JSON.stringify(myGrid),
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await db.doc(`artifacts/${fixedAppId}/public/data/block_puzzle_players/${currentUser.uid}`)
+            .set(state)
+            .catch(error => { console.error("Sync Error:", error); });
+    }
+
+    function renderOpponents(opponents) {
+        const isMobile = window.innerWidth <= 768; // 모바일 감지
+
+        for(let i=1; i<=MAX_OPPONENTS; i++) {
+            const nameEl = document.getElementById(`op${i}-name`);
+            const scoreEl = document.getElementById(`op${i}-score`);
+            if(nameEl) nameEl.innerText = `Player ${i+1}`;
+            if(scoreEl) scoreEl.innerText = "Waiting";
+            
+            const cvs = document.getElementById(`op${i}Canvas`);
+            if(cvs) {
+                const ctx = cvs.getContext('2d');
+                ctx.clearRect(0,0,cvs.width, cvs.height);
+                ctx.fillStyle = '#0f1526'; ctx.fillRect(0,0,cvs.width, cvs.height);
+            }
+        }
+        
+        opponents.slice(0, MAX_OPPONENTS).forEach((opp, idx) => {
+            const slotNum = idx + 1;
+            const cvs = document.getElementById(`op${slotNum}Canvas`);
+            const nameEl = document.getElementById(`op${slotNum}-name`);
+            const scoreEl = document.getElementById(`op${slotNum}-score`);
+            
+            if(!cvs) return;
+            
+            const ctx = cvs.getContext('2d');
+            
+            try {
+                const gridData = JSON.parse(opp.grid);
+                // 닉네임
+                if(nameEl) nameEl.innerText = opp.userName || `Player ${slotNum+1}`;
+                
+                // 점수 표시 방식 분기
+                if(scoreEl) {
+                    if (isMobile) {
+                        // 모바일: 간단하게 "🏆 1000" 형태
+                        scoreEl.innerText = `🏆 ${opp.highScore || 0}`;
+                    } else {
+                        // PC: 자세하게 "Score: 100 (Best: 1000)"
+                        const best = opp.highScore ? `(Best: ${opp.highScore})` : '';
+                        scoreEl.innerText = `Score: ${opp.score} ${best}`;
+                    }
+                }
+                
+                // PC에서만 캔버스 그리기 (모바일은 CSS로 canvas 숨김)
+                if (!isMobile) {
+                    const tempW = cvs.width, tempH = cvs.height;
+                    const maxBoardSize = Math.min(tempW, tempH * 0.9);
+                    const opCellSize = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
+                    const opBoardX = (tempW - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
+                    const opBoardY = (tempH - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
+                    
+                    ctx.fillStyle = '#16213e'; ctx.fillRect(0,0,tempW, tempH);
+                    for(let r=0; r<GRID_SIZE; r++) {
+                        for(let c=0; c<GRID_SIZE; c++) {
+                            const x = opBoardX + c * (opCellSize + CELL_GAP);
+                            const y = opBoardY + r * (opCellSize + CELL_GAP);
+                            ctx.fillStyle = '#0f1526'; ctx.fillRect(x, y, opCellSize, opCellSize);
+                            if(gridData[r][c]) {
+                                ctx.fillStyle = gridData[r][c]; ctx.fillRect(x, y, opCellSize, opCellSize);
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("JSON Parse error:", e);
+            }
+        });
+    }
+
+    init();
+</script>
+</body>
+</html>
