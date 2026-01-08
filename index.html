@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Optimized)</title>
+    <title>Puzzle Blast Online (10 Players)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -22,7 +22,7 @@
             touch-action: none;
             margin: 0;
             height: 100vh;
-            height: 100dvh;
+            height: 100dvh; /* 모바일 브라우저 주소창 대응 */
             display: flex;
             flex-direction: column;
         }
@@ -39,7 +39,7 @@
             flex-shrink: 0;
         }
 
-        /* PC 기본 레이아웃 */
+        /* [PC 기본 레이아웃] */
         #game-grid {
             flex: 1;
             display: grid;
@@ -71,40 +71,47 @@
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
-                overflow-y: auto;        
-                padding: 10px;
-                padding-bottom: 40px;    
-                gap: 15px;               
+                height: calc(100dvh - 50px); 
+                overflow: hidden;        
+                padding: 8px;
+                gap: 8px;               
             }
+
+            /* 내 슬롯: 더 크게 (70%) */
             #slot-me {
-                flex: 0 0 auto;          
-                height: 50vh;            
+                flex: 0 0 70%;          
                 width: 100%;
+                min-height: 0;
             }
+
+            /* 상대방 슬롯 컨테이너 */
             .opponents-container {
+                flex: 1;
                 display: grid;
                 grid-template-columns: repeat(3, 1fr); 
-                gap: 8px;
+                /* 높이 자동 조절 */
+                grid-auto-rows: minmax(0, 1fr); 
+                gap: 4px;
                 width: 100%;
-                flex: 0 0 auto;
+                overflow-y: auto; 
+                padding-bottom: 10px;
             }
             
-            /* [핵심] 모바일에서 상대방 슬롯 스타일 변경 */
+            /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
-                aspect-ratio: auto; 
-                height: 65px; /* 높이를 고정하여 명함처럼 만듦 */
+                height: 100%; 
+                min-height: 50px;
                 background: #252538;
                 border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 6px;
             }
             
-            /* [핵심] 모바일에서 상대방 캔버스(게임화면) 숨김 */
             .player-slot:not(.me) canvas {
                 display: none !important;
             }
 
-            /* [핵심] 모바일 텍스트 정보 중앙 정렬 */
             .player-slot:not(.me) .slot-info {
-                position: relative; /* 절대 위치 해제 */
+                position: relative; 
                 top: 0; left: 0;
                 width: 100%; height: 100%;
                 display: flex;
@@ -112,16 +119,22 @@
                 justify-content: center;
                 align-items: center;
                 text-align: center;
+                padding: 2px;
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 13px; 
-                margin-bottom: 4px;
-                color: #fff;
+                font-size: 11px; 
+                margin-bottom: 2px;
+                color: #ccc;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                width: 95%;
             }
             .player-slot:not(.me) .player-score { 
                 font-size: 12px; 
-                color: #ffd700; /* 최고점수 강조색 */
+                color: #ffd700; 
+                font-weight: 800;
             }
         }
 
@@ -320,7 +333,7 @@
     let myHighScore = 0;
     
     let comboCount = 0;
-    let lastOpponentsList = []; // [추가] 리사이징 대응을 위해 데이터 저장
+    let lastOpponentsList = []; 
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     
@@ -374,30 +387,53 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    const SHAPES = [
-        { coords: [[0,0]], color: '#FF5733' },
-        { coords: [[0,0], [1,0]], color: '#33FF57' }, 
-        { coords: [[0,0], [0,1]], color: '#33FF57' },
-        { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' },
-        { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' },
-        { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' },
-        { coords: [[0,0], [0,1], [0,2], [0,3]], color: '#FF33A1' },
-        { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
-        { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' },
-        { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
-        { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
-        { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' },
-        { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' },
-        { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' },
-        { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' },
-        { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' },
-        { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' },
-        { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' },
-        { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' },
-        { coords: [[0,0], [1,1]], color: '#AAAAAA' },
-        { coords: [[0,1], [1,0]], color: '#AAAAAA' },
-        { coords: [[0,0], [1,1], [2,2]], color: '#888888' },
-        { coords: [[0,2], [1,1], [2,0]], color: '#888888' }
+    const SHAPES_DATA = [
+        { prob: 3, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
+        { prob: 4, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, 
+        { prob: 4, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
+        { prob: 4, shape: { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' } }, 
+        { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' } }, 
+        { prob: 3, shape: { coords: [[0,0], [0,1], [0,2], [0,3]], color: '#FF33A1' } }, 
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, 
+        { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
+        { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, 
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, 
+        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, 
+        { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } },
+        { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } },
+        { prob: 3, shape: { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' } },
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } },
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' } },
+        { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } },
+        { prob: 2, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } },
+        { prob: 1, shape: { coords: [[0,0], [1,1]], color: '#AAAAAA' } },
+        { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } },
+        { prob: 1, shape: { coords: [[0,0], [1,1], [2,2]], color: '#888888' } },
+        { prob: 1, shape: { coords: [[0,2], [1,1], [2,0]], color: '#888888' } }
+    ];
+
+    const LUCKY_SETS = [
+        [
+             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
+             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
+             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' }
+        ],
+        [
+             { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
+             { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
+             { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' }
+        ],
+        [
+             { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
+             { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
+             { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' }
+        ],
+        [
+             { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' },
+             { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' },
+             { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' }
+        ]
     ];
 
     const myCanvas = document.getElementById('gameCanvas');
@@ -422,7 +458,6 @@
         resizeAll();
         window.addEventListener('resize', () => {
             resizeAll();
-            // 화면 회전/리사이즈 시 텍스트 표시 방식 업데이트를 위해 재렌더링
             if(lastOpponentsList.length > 0) renderOpponents(lastOpponentsList);
         });
         requestAnimationFrame(gameLoop);
@@ -494,17 +529,42 @@
         });
     }
 
+    function getRandomShape() {
+        const totalProb = SHAPES_DATA.reduce((sum, item) => sum + item.prob, 0);
+        let random = Math.random() * totalProb;
+        
+        for (const item of SHAPES_DATA) {
+            if (random < item.prob) {
+                return item.shape;
+            }
+            random -= item.prob;
+        }
+        return SHAPES_DATA[0].shape; 
+    }
+
     function spawnBlocks() {
         handBlocks = [];
-        for(let i=0; i<3; i++) {
-            let shape;
-            if (Math.random() < 0.1) {
-                shape = SHAPES[0];
-            } else {
-                shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+        
+        if (Math.random() < 0.15) {
+            const luckySet = LUCKY_SETS[Math.floor(Math.random() * LUCKY_SETS.length)];
+            for(let i=0; i<3; i++) {
+                handBlocks.push({ 
+                    shape: luckySet[i], 
+                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    isDragging: false, isPlaced: false 
+                });
             }
-            handBlocks.push({ shape, x:0, y:0, baseX:0, baseY:0, scale: 0.6, isDragging: false, isPlaced: false });
+        } else {
+            for(let i=0; i<3; i++) {
+                const shape = getRandomShape();
+                handBlocks.push({ 
+                    shape: shape, 
+                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    isDragging: false, isPlaced: false 
+                });
+            }
         }
+        
         repositionHand();
         checkLoseCondition();
     }
@@ -652,6 +712,27 @@
         popup.classList.add('animate');
     }
 
+    function getDropPos(block) {
+        const visualsY = block.y - getVisualOffset();
+        let minX=10, maxX=-10, minY=10, maxY=-10;
+        block.shape.coords.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+        const shapeW = (maxX - minX + 1), shapeH = (maxY - minY + 1);
+        const relX = block.x - boardX, relY = visualsY - boardY;
+        const cellTotal = CELL_SIZE + CELL_GAP;
+        
+        // [수정된 중심점 보정 로직]
+        const rawC = (relX / cellTotal) - (shapeW / 2);
+        const rawR = (relY / cellTotal) - (shapeH / 2);
+        
+        const c = Math.round(rawC), r = Math.round(rawR);
+        const diffC = Math.abs(rawC - c), diffR = Math.abs(rawR - r);
+        
+        // [판정 범위 확대] 0.75로 늘려서 대충 놓아도 잘 붙게 함
+        const THRESHOLD = 0.75; 
+        if (diffC > THRESHOLD || diffR > THRESHOLD) return null;
+        return { r, c };
+    }
+
     function getVisualOffset() { return inputMode === 'touch' ? 80 : 0; }
 
     function gameLoop() {
@@ -743,23 +824,6 @@
             ctx.strokeStyle = shape.color; ctx.lineWidth = 2; ctx.strokeRect(x, y, CELL_SIZE, CELL_SIZE);
         });
         ctx.globalAlpha = 1.0;
-    }
-
-    function getDropPos(block) {
-        const visualsY = block.y - getVisualOffset();
-        let minX=10, maxX=-10, minY=10, maxY=-10;
-        block.shape.coords.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
-        const shapeW = (maxX - minX + 1), shapeH = (maxY - minY + 1);
-        const relX = block.x - boardX, relY = visualsY - boardY;
-        const cellTotal = CELL_SIZE + CELL_GAP;
-        const rawC = (relX / cellTotal) - (shapeW - 1) / 2;
-        const rawR = (relY / cellTotal) - (shapeH - 1) / 2;
-        const c = Math.round(rawC), r = Math.round(rawR);
-        const diffC = Math.abs(rawC - c), diffR = Math.abs(rawR - r);
-        
-        const THRESHOLD = 0.65; 
-        if (diffC > THRESHOLD || diffR > THRESHOLD) return null;
-        return { r, c };
     }
 
     myCanvas.addEventListener('mousedown', e => { inputMode = 'mouse'; handleStart(e.offsetX, e.offsetY); });
