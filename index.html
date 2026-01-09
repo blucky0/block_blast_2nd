@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Smart Spawn)</title>
+    <title>Puzzle Blast Online (Smart Rescue)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -39,6 +39,7 @@
             flex-shrink: 0;
         }
 
+        /* [PC 기본 레이아웃] */
         #game-grid {
             flex: 1;
             display: grid;
@@ -274,7 +275,6 @@
         </div>
 
         <div class="opponents-container">
-            <!-- Opponents 2~10 -->
             <div class="player-slot" id="slot-op1"><div class="slot-info"><div class="player-name" id="op1-name">Player 2</div><div class="player-score" id="op1-score">Waiting</div></div><canvas id="op1Canvas"></canvas></div>
             <div class="player-slot" id="slot-op2"><div class="slot-info"><div class="player-name" id="op2-name">Player 3</div><div class="player-score" id="op2-score">Waiting</div></div><canvas id="op2Canvas"></canvas></div>
             <div class="player-slot" id="slot-op3"><div class="slot-info"><div class="player-name" id="op3-name">Player 4</div><div class="player-score" id="op3-score">Waiting</div></div><canvas id="op3Canvas"></canvas></div>
@@ -335,7 +335,7 @@
     }
     
     function playSound(type) {
-        if (!audioCtx) initAudio(); // 없으면 생성 시도
+        if (!audioCtx) initAudio(); 
         if (!audioCtx || audioCtx.state === 'suspended') return;
         
         const osc = audioCtx.createOscillator();
@@ -348,12 +348,12 @@
         if (type === 'clear') {
             const baseFreq = 400 + (Math.min(comboCount,10) * 60);
             osc.frequency.setValueAtTime(baseFreq, now);
-            osc.frequency.exponentialRampToValueAtTime(baseFreq + 300, now + 0.15);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq + 300, now + 0.2);
             osc.type = 'sine';
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
             osc.start(now);
-            osc.stop(now + 0.3);
+            osc.stop(now + 0.4);
         } else if (type === 'allclear') {
             osc.frequency.setValueAtTime(500, now);
             osc.frequency.linearRampToValueAtTime(1500, now + 0.4);
@@ -363,13 +363,12 @@
             osc.start(now);
             osc.stop(now + 0.6);
         } else if (type === 'place') {
-            // 더 잘 들리는 타격음 (톤 낮춤, 길이 증가)
             osc.frequency.setValueAtTime(200, now);
-            osc.type = 'triangle';
-            gain.gain.setValueAtTime(0.2, now); // 볼륨 증가
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15); // 길이 증가
+            osc.type = 'square'; 
+            gain.gain.setValueAtTime(0.1, now); 
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2); 
             osc.start(now);
-            osc.stop(now + 0.15);
+            osc.stop(now + 0.2);
         }
     }
 
@@ -396,16 +395,27 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    // [확률 조정] 1x1, 2x1 확률 낮춤 (prob: 5 -> 2~3)
+    // [블록 데이터 업데이트] 2x2 꺾임 4종 모두 포함
     const SHAPES_DATA = [
-        { prob: 2, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
-        { prob: 3, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
-        { prob: 3, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
+        { prob: 3, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
+        { prob: 4, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
+        { prob: 4, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' } }, // 1x3
         { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, // 2x2
-        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, // 작은 ㄴ
         
+        // [작은 꺾임 (3칸) - 4방향]
+        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, // ┌
+        { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, // ┐ (모양상)
+        { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } }, // └
+        { prob: 3, shape: { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' } }, // ┘
+        
+        // [큰 꺾임 (5칸) - 4방향]
+        { prob: 2, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } }, // ┏
+        { prob: 2, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' } }, // ┓
+        { prob: 2, isHard: true, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } }, // ┗
+        { prob: 2, isHard: true, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } }, // ┛
+
         { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, // 3x3
         
         { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' } }, // 1x4
@@ -417,27 +427,18 @@
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
     ];
 
-    // [스마트/럭키 세트] 3x3 포함된 '땡큐' 조합 추가 (확률 15%)
+    // [럭키 세트]
     const LUCKY_SETS = [
-        // 3x3 + 3x2 + 3x1 (합치면 3x6)
         [
-             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' }, // 3x3
-             { coords: [[0,0], [1,0], [0,1], [1,1], [0,2], [1,2]], color: '#8C33FF' }, // 2x3
-             { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } // 1x3
+             { coords: [[0,0]], color: '#FF5733' },
+             { coords: [[0,0]], color: '#FF5733' },
+             { coords: [[0,0]], color: '#FF5733' }
         ],
-        // 3x3 + 3x3 콤보 (빈땅일때 대박)
         [
-             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
-             { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' },
-             { coords: [[0,0]], color: '#FF5733' } // 1x1 보너스
+             { coords: [[0,0], [1,0]], color: '#33FF57' },
+             { coords: [[0,0], [1,0]], color: '#33FF57' },
+             { coords: [[0,0], [1,0]], color: '#33FF57' }
         ],
-        // 긴 막대 정리 세트
-        [
-             { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
-             { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' },
-             { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' }
-        ],
-        // 2x2 파티
         [
              { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
              { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' },
@@ -480,8 +481,8 @@
             }
         });
 
-        // 사운드 활성화 트리거 추가
-        ['mousedown', 'touchstart', 'keydown'].forEach(evt => 
+        // 사운드 활성화 트리거
+        ['mousedown', 'touchstart', 'keydown', 'click'].forEach(evt => 
             document.addEventListener(evt, initAudio, { once: true })
         );
 
@@ -545,24 +546,101 @@
     }
 
     function getRandomShape() {
-        // 모든 블록 가능 (확률 기반)
-        const totalProb = SHAPES_DATA.reduce((sum, item) => sum + item.prob, 0);
+        const isEasyMode = myScore < 2000;
+        const availableShapes = isEasyMode 
+            ? SHAPES_DATA.filter(s => !s.isHard) 
+            : SHAPES_DATA;
+
+        const totalProb = availableShapes.reduce((sum, item) => sum + item.prob, 0);
         let random = Math.random() * totalProb;
         
-        for (const item of SHAPES_DATA) {
+        for (const item of availableShapes) {
             if (random < item.prob) {
                 return item.shape;
             }
             random -= item.prob;
         }
-        return SHAPES_DATA[0].shape; 
+        return availableShapes[0].shape; 
+    }
+
+    // [스마트 스폰] 위기 상황에서 '뚫어주는' 블록 찾기
+    function getSolutionSet() {
+        // 현재 보드에 놓을 수 있는 블록(해결사)을 찾는다.
+        // 우선 쉬운 블록들(1~4칸)을 후보로 선정
+        const easyCandidates = SHAPES_DATA.filter(s => !s.isHard && s.shape.coords.length <= 4)
+                                          .map(s => s.shape);
+        // 무작위로 섞음
+        easyCandidates.sort(() => Math.random() - 0.5);
+
+        let solverBlock = null;
+        let hardBlock = null;
+
+        // 1. 해결사 블록 찾기: 놓으면 줄이 터지는 블록 찾기 (우선순위)
+        //    또는 그냥 놓을 수 있는 블록이라도 찾기
+        for (let shape of easyCandidates) {
+            for (let r=0; r<GRID_SIZE; r++) {
+                for (let c=0; c<GRID_SIZE; c++) {
+                    if (canPlace(shape, r, c)) {
+                        solverBlock = shape;
+                        // 만약 이게 줄을 터뜨린다면 더 좋음 (여기선 단순 가용성만 체크)
+                        // 더 깊은 시뮬레이션은 성능상 생략하고, '놓을 수 있는 것'을 확보
+                        break; 
+                    }
+                }
+                if (solverBlock) break;
+            }
+            if (solverBlock) break;
+        }
+
+        // 2. 만약 해결사 블록을 찾았다면, Hard 블록 하나와 섞어서 줌 (도전과제)
+        //    단, 위기가 너무 심하면(빈칸 10% 미만) 쉬운거만 줌
+        let emptyCount = 0;
+        for(let r=0; r<GRID_SIZE; r++) for(let c=0; c<GRID_SIZE; c++) if(myGrid[r][c] === null) emptyCount++;
+        
+        if (solverBlock && emptyCount > 8) {
+             // 어려운 블록 하나 끼워넣기 (3x3 등)
+             const hardCandidates = SHAPES_DATA.filter(s => s.isHard).map(s => s.shape);
+             hardBlock = hardCandidates[Math.floor(Math.random() * hardCandidates.length)];
+             
+             // 결과: [해결사, 어려운거, 쉬운거]
+             return [
+                 solverBlock, 
+                 hardBlock, 
+                 easyCandidates[Math.floor(Math.random() * easyCandidates.length)]
+             ];
+        } else if (solverBlock) {
+            // 정말 위기면 쉬운거 3개
+            return [solverBlock, easyCandidates[0], easyCandidates[1]];
+        }
+        
+        // 답이 없으면 1x1 3개 (최후의 수단)
+        const oneByOne = SHAPES_DATA[0].shape;
+        return [oneByOne, oneByOne, oneByOne];
     }
 
     function spawnBlocks() {
         handBlocks = [];
         
-        // 15% 확률로 럭키 세트 (3x3 포함 등)
-        if (Math.random() < 0.15) {
+        let emptyCount = 0;
+        for(let r=0; r<GRID_SIZE; r++) {
+            for(let c=0; c<GRID_SIZE; c++) {
+                if(myGrid[r][c] === null) emptyCount++;
+            }
+        }
+        const isCrisis = emptyCount < (GRID_SIZE*GRID_SIZE * 0.3); 
+
+        if (isCrisis) {
+            // 위기 상황: 스마트 솔루션 세트 제공
+            const solutionSet = getSolutionSet();
+            for(let i=0; i<3; i++) {
+                handBlocks.push({ 
+                    shape: solutionSet[i], 
+                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    isDragging: false, isPlaced: false 
+                });
+            }
+        } else if (Math.random() < 0.15) {
+            // 럭키 세트
             const luckySet = LUCKY_SETS[Math.floor(Math.random() * LUCKY_SETS.length)];
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
@@ -572,22 +650,10 @@
                 });
             }
         } else {
-            // 랜덤 생성 (하드 블록 연속 방지 로직)
-            let hardCount = 0;
+            // 일반 생성
             for(let i=0; i<3; i++) {
-                let shapeObj = null;
-                // 하드 블록이 이미 1개 나왔으면, 나머지는 쉬운거 나오도록 유도
-                if (hardCount >= 1) {
-                    const easyShapes = SHAPES_DATA.filter(s => !s.isHard);
-                    shapeObj = easyShapes[Math.floor(Math.random() * easyShapes.length)].shape;
-                } else {
-                    shapeObj = getRandomShape();
-                    // 뽑은게 하드 블록인지 체크 (SHAPES_DATA 역추적은 복잡하니, 크기로 대충 판별)
-                    if (shapeObj.coords.length >= 5) hardCount++; 
-                }
-                
                 handBlocks.push({ 
-                    shape: shapeObj, 
+                    shape: getRandomShape(), 
                     x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
                     isDragging: false, isPlaced: false 
                 });
