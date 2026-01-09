@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Layout v3)</title>
+    <title>Puzzle Blast Online (Final Blocks)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,20 +66,20 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 67% 확장] */
+        /* [모바일 최적화: 절대 겹침 방지 레이아웃] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 5px;
-                gap: 8px;               
+                padding: 2px;
+                gap: 5px;               
             }
 
-            /* 내 슬롯: 67% 차지 (요청사항 반영) */
+            /* 내 슬롯: 사용자가 만족한 비율 유지 (60%) */
             #slot-me {
-                flex: 0 0 67%;          
+                flex: 0 0 60%;          
                 width: 100%;
                 min-height: 0;
                 margin-bottom: 0;
@@ -88,20 +88,18 @@
                 justify-content: center;
             }
 
-            /* 상대방 슬롯 컨테이너: 나머지 공간 (스크롤 가능) */
+            /* 상대방 슬롯 컨테이너: 높이 고정 (약 130px -> 96px로 수정됨) */
             .opponents-container {
-                flex: 1; 
+                flex: 1; /* 남은 공간 채움 */
                 display: grid;
-                grid-template-columns: repeat(3, 1fr); /* 3열 */
-                grid-auto-rows: min-content; 
-                gap: 5px;
+                grid-template-columns: repeat(5, 1fr); /* 가로 5칸 */
+                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
+                gap: 3px;
                 width: 100%;
-                overflow-y: auto; 
-                padding: 2px;
-                background: rgba(0,0,0,0.1); 
+                padding: 3px;
+                background: rgba(0,0,0,0.2); 
                 border-radius: 8px;
-                scrollbar-width: thin;
-                scrollbar-color: #e94560 #1a1a2e;
+                overflow: hidden;
             }
             
             #slot-op1, #slot-op2, #slot-op3, #slot-op4, #slot-op5,
@@ -111,51 +109,57 @@
             
             /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
+                height: 100%; 
                 background: #252538;
                 border: 1px solid rgba(255,255,255,0.15);
-                border-radius: 6px;
+                border-radius: 4px;
                 display: flex; 
                 flex-direction: column;
-                justify-content: space-between;
+                justify-content: center;
                 align-items: center;
-                padding: 4px;
-                aspect-ratio: 3/4; 
+                min-height: 0; 
+                overflow: hidden;
             }
             
+            /* 모바일 상대방 캔버스 */
             .player-slot:not(.me) canvas {
                 display: block !important;
                 width: 100% !important;
                 aspect-ratio: 1/1; 
                 height: auto !important;
                 background: #151520; 
-                border-radius: 4px;
-                margin-top: 2px;
+                border-radius: 2px;
+                margin-top: 1px;
+                flex: 1;
             }
 
             .player-slot:not(.me) .slot-info {
                 position: static; 
-                width: 100%; 
-                height: auto;
+                width: 100%; height: auto;
                 display: flex;
-                flex-direction: column;
+                flex-direction: row; /* 가로 배치 */
                 justify-content: center;
                 align-items: center;
                 text-align: center;
+                padding: 1px;
+                gap: 2px;
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 10px; 
+                font-size: 9px;
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                width: 100%;
-                margin-bottom: 2px;
+                max-width: 50%;
+                line-height: 1.1;
+                margin: 0;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 11px; 
+                font-size: 10px;
                 color: #ffd700; 
                 font-weight: 800;
+                line-height: 1.1;
             }
         }
 
@@ -476,15 +480,19 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    // [블록 데이터]
+    // [블록 데이터 업데이트] 3x2, 2x3 추가
     const SHAPES_DATA = [
-        { prob: 3, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
-        { prob: 4, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
-        { prob: 4, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
+        { prob: 2, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
+        { prob: 3, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
+        { prob: 3, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' } }, // 1x3
         { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, // 2x2
         
+        // [신규] 3x2, 2x3 (뚱뚱한 직사각형)
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1]], color: '#20B2AA' } }, // 3x2
+        { prob: 2, shape: { coords: [[0,0], [1,0], [0,1], [1,1], [0,2], [1,2]], color: '#20B2AA' } }, // 2x3
+
         { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } }, 
@@ -495,6 +503,11 @@
         { prob: 3, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } }, 
         { prob: 3, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } }, 
 
+        { prob: 3, shape: { coords: [[1,0], [0,1], [1,1], [2,1]], color: '#9932CC' } }, // ㅗ
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [1,1]], color: '#9932CC' } }, // ㅜ
+        { prob: 3, shape: { coords: [[1,0], [1,1], [1,2], [0,1]], color: '#9932CC' } }, // ㅓ
+        { prob: 3, shape: { coords: [[0,0], [0,1], [0,2], [1,1]], color: '#9932CC' } }, // ㅏ
+
         { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, // 3x3
         
         { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' } }, // 1x4
@@ -502,11 +515,13 @@
         { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, // 1x5
         { prob: 1, isHard: true, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
         
+        { prob: 2, shape: { coords: [[0,0], [1,0], [1,1], [2,1]], color: '#00CED1' } }, // Z
+        { prob: 1, isHard: true, shape: { coords: [[1,0], [0,1], [1,1], [2,1], [1,2]], color: '#FF1493' } }, // +
+
         { prob: 1, shape: { coords: [[0,0], [1,1]], color: '#AAAAAA' } }, // 대각
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
     ];
 
-    // [럭키 세트]
     const LUCKY_SETS = [
         [
              { coords: [[0,0]], color: '#FF5733' },
@@ -607,7 +622,6 @@
     }
 
     function calcBoardMetrics(w, h) {
-        // [모바일] 게임판 비율 
         const isMobile = window.innerWidth <= 768;
         const ratio = isMobile ? 0.75 : 0.65;
         const maxBoardSize = Math.min(w, h * ratio);
@@ -699,7 +713,7 @@
         }
         const isCrisis = emptyCount < (GRID_SIZE*GRID_SIZE * 0.3); 
 
-        // [모바일] 블록 크기 축소 (0.45)
+        // [모바일] 블록 크기 축소
         const isMobile = window.innerWidth <= 768;
         const scale = isMobile ? 0.45 : 0.6;
 
