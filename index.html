@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Leaderboard)</title>
+    <title>Puzzle Blast Online (Final Mobile Fix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,74 +66,78 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 레이아웃 조정] */
+        /* [모바일 최적화: 5열 배치 & 공간 확보] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 5px; /* 패딩 축소 */
+                padding: 5px;
                 gap: 5px;               
             }
 
-            /* 내 슬롯: 화면의 70% 정도 차지하게 (게임판 확대) */
+            /* 내 슬롯: 60%로 줄여서 하단 블록 공간 확보 */
             #slot-me {
-                flex: 7; /* flex-grow 사용 */
+                flex: 0 0 60%;          
                 width: 100%;
                 min-height: 0;
-                margin-bottom: 5px;
+                margin-bottom: 0; /* 여백 제거 */
             }
 
-            /* 상대방 슬롯 컨테이너: 나머지 공간 */
+            /* 상대방 슬롯 컨테이너: 5열 2행 (스크롤 제거) */
             .opponents-container {
-                flex: 3; /* flex-grow 사용 */
+                flex: 1; /* 나머지 공간 꽉 채움 (약 40%) */
                 display: grid;
-                grid-template-columns: repeat(3, 1fr); 
-                grid-auto-rows: 60px; /* 명함 높이 고정 */
-                gap: 4px;
+                grid-template-columns: repeat(5, 1fr); /* 가로 5개 */
+                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
+                gap: 3px;
                 width: 100%;
-                overflow-y: auto; /* 스크롤 필수 */
-                padding-bottom: 10px;
-                background: rgba(0,0,0,0.2); /* 영역 구분용 */
-                border-radius: 8px;
-                padding: 5px;
+                overflow: hidden; /* 스크롤 없음 */
+                padding-bottom: 5px;
             }
             
             /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
                 height: 100%; 
                 background: #252538;
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 6px;
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 4px;
                 display: flex; 
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
+                min-height: 0; /* 최소 높이 제한 해제 */
             }
             
             .player-slot:not(.me) canvas { display: none !important; }
 
             .player-slot:not(.me) .slot-info {
                 position: static; 
-                width: auto; height: auto;
+                width: 100%; height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
                 text-align: center;
-                pointer-events: none;
+                padding: 1px;
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 11px; 
-                margin-bottom: 2px;
+                font-size: 10px; /* 폰트 더 작게 */
+                margin-bottom: 1px;
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                max-width: 80px;
+                width: 95%;
+                line-height: 1.2;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 13px; 
+                font-size: 11px; /* 폰트 더 작게 */
                 color: #ffd700; 
                 font-weight: 800;
+                line-height: 1.2;
             }
         }
 
@@ -403,10 +407,10 @@
         const now = audioCtx.currentTime;
 
         if (type === 'clear') {
-            const baseFreq = 523.25 + (Math.min(comboCount,10) * 50); // 높은 도(C5)부터 시작
+            const baseFreq = 523.25 + (Math.min(comboCount,10) * 50); 
             osc.frequency.setValueAtTime(baseFreq, now);
-            osc.frequency.linearRampToValueAtTime(baseFreq + 300, now + 0.1); // 띵~ 느낌
-            osc.type = 'sine'; // 맑은 소리
+            osc.frequency.linearRampToValueAtTime(baseFreq + 300, now + 0.1); 
+            osc.type = 'sine'; 
             
             gain.gain.setValueAtTime(0.3, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
@@ -454,38 +458,36 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    // [확률 재조정: 작은 것 줄이고 골고루]
+    // [블록 데이터]
     const SHAPES_DATA = [
-        { prob: 2, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
-        { prob: 3, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
-        { prob: 3, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
+        { prob: 3, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
+        { prob: 4, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
+        { prob: 4, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' } }, // 1x3
         { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, // 2x2
         
-        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, // 3칸 ㄱ
+        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' } }, 
         
-        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } }, // 5칸 ㄱ
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } }, 
         { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' } }, 
         { prob: 3, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } }, 
         { prob: 3, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } }, 
 
-        // 3x3: 초반 제한 해제 (그냥 나옴)
-        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, 
+        { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, // 3x3
         
         { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' } }, // 1x4
         { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [0,3]], color: '#FF33A1' } }, 
-        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, // 1x5
-        { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
+        { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, // 1x5
+        { prob: 1, isHard: true, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
         
         { prob: 1, shape: { coords: [[0,0], [1,1]], color: '#AAAAAA' } }, // 대각
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
     ];
 
-    // [럭키 세트]
     const LUCKY_SETS = [
         [
              { coords: [[0,0]], color: '#FF5733' },
@@ -580,17 +582,16 @@
     }
 
     function calcBoardMetrics(w, h) {
-        // [모바일] 게임판 비율 확대 (0.65 -> 0.85)
+        // [모바일] 비율 축소 및 상단 여백 조정
         const isMobile = window.innerWidth <= 768;
-        const ratio = isMobile ? 0.85 : 0.65;
+        const ratio = isMobile ? 0.75 : 0.65;
         const maxBoardSize = Math.min(w, h * ratio);
         
         CELL_SIZE = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
         const totalBoardSize = (CELL_SIZE * GRID_SIZE) + (CELL_GAP * (GRID_SIZE - 1));
         
         boardX = (w - totalBoardSize) / 2;
-        // [모바일] 상단 여백 축소
-        boardY = isMobile ? 10 : 20; 
+        boardY = isMobile ? 20 : 20; 
     }
 
     function repositionHand() {
@@ -609,7 +610,6 @@
     }
 
     function getRandomShape() {
-        // 2000점 미만 제한 제거 (항상 모든 블록 등장)
         const totalProb = SHAPES_DATA.reduce((sum, item) => sum + item.prob, 0);
         let random = Math.random() * totalProb;
         
@@ -622,7 +622,6 @@
         return SHAPES_DATA[0].shape; 
     }
 
-    // [스마트 스폰] 위기 상황에서 '뚫어주는' 블록 찾기
     function getSolutionSet() {
         const easyCandidates = SHAPES_DATA.filter(s => s.shape.coords.length <= 4)
                                           .map(s => s.shape);
@@ -675,12 +674,16 @@
         }
         const isCrisis = emptyCount < (GRID_SIZE*GRID_SIZE * 0.3); 
 
+        // [모바일] 블록 크기 축소 (0.45)
+        const isMobile = window.innerWidth <= 768;
+        const scale = isMobile ? 0.45 : 0.6;
+
         if (isCrisis) {
             const solutionSet = getSolutionSet();
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
                     shape: solutionSet[i], 
-                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    x:0, y:0, baseX:0, baseY:0, scale: scale, 
                     isDragging: false, isPlaced: false 
                 });
             }
@@ -689,7 +692,7 @@
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
                     shape: luckySet[i], 
-                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    x:0, y:0, baseX:0, baseY:0, scale: scale, 
                     isDragging: false, isPlaced: false 
                 });
             }
@@ -697,7 +700,7 @@
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
                     shape: getRandomShape(), 
-                    x:0, y:0, baseX:0, baseY:0, scale: 0.6, 
+                    x:0, y:0, baseX:0, baseY:0, scale: scale, 
                     isDragging: false, isPlaced: false 
                 });
             }
@@ -1111,8 +1114,8 @@
         
         await syncState();
 
-        // 게임 시작 시(방 조인 시) 순위표 한 번 보여주기
-        showLeaderboard();
+        // 게임 시작 시(방 조인 시) 순위표 한 번 보여주기 - 1초 딜레이 추가로 로딩 보장
+        setTimeout(showLeaderboard, 1000);
 
         if(unsubscribeRoom) unsubscribeRoom();
 
