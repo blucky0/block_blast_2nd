@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Final Blocks)</title>
+    <title>Puzzle Blast Online (Final Balance)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDK (Compat Version) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -66,20 +66,20 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 절대 겹침 방지 레이아웃] */
+        /* [모바일 최적화: 65% 고정 & 5열 배치] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 2px;
-                gap: 5px;               
+                padding: 4px;
+                gap: 4px;               
             }
 
-            /* 내 슬롯: 사용자가 만족한 비율 유지 (60%) */
+            /* 내 슬롯: 65% 고정 (요청사항) */
             #slot-me {
-                flex: 0 0 60%;          
+                flex: 0 0 65%;          
                 width: 100%;
                 min-height: 0;
                 margin-bottom: 0;
@@ -88,18 +88,19 @@
                 justify-content: center;
             }
 
-            /* 상대방 슬롯 컨테이너: 높이 고정 (약 130px -> 96px로 수정됨) */
+            /* 상대방 슬롯 컨테이너: 남은 공간 (35%) */
             .opponents-container {
-                flex: 1; /* 남은 공간 채움 */
+                flex: 1; 
                 display: grid;
-                grid-template-columns: repeat(5, 1fr); /* 가로 5칸 */
-                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
-                gap: 3px;
+                grid-template-columns: repeat(5, 1fr); /* 5열 */
+                /* 행 높이를 촘촘하게 자동 조절 */
+                grid-auto-rows: minmax(0, 1fr); 
+                gap: 2px;
                 width: 100%;
-                padding: 3px;
+                padding: 2px;
                 background: rgba(0,0,0,0.2); 
-                border-radius: 8px;
-                overflow: hidden;
+                border-radius: 6px;
+                overflow: hidden; /* 스크롤 없이 딱 맞게 */
             }
             
             #slot-op1, #slot-op2, #slot-op3, #slot-op4, #slot-op5,
@@ -109,57 +110,59 @@
             
             /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
+                width: 100%;
                 height: 100%; 
                 background: #252538;
-                border: 1px solid rgba(255,255,255,0.15);
-                border-radius: 4px;
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 3px;
                 display: flex; 
                 flex-direction: column;
-                justify-content: center;
+                justify-content: center; /* 중앙 정렬 */
                 align-items: center;
-                min-height: 0; 
-                overflow: hidden;
+                padding: 1px;
+                min-height: 0;
             }
             
             /* 모바일 상대방 캔버스 */
             .player-slot:not(.me) canvas {
                 display: block !important;
-                width: 100% !important;
+                /* 너비 기준으로 정사각형 유지 */
+                width: 85% !important; 
                 aspect-ratio: 1/1; 
                 height: auto !important;
                 background: #151520; 
                 border-radius: 2px;
-                margin-top: 1px;
-                flex: 1;
+                margin-bottom: 1px;
+                touch-action: none; /* 터치 간섭 방지 */
             }
 
             .player-slot:not(.me) .slot-info {
                 position: static; 
-                width: 100%; height: auto;
+                width: 100%; 
+                height: auto;
                 display: flex;
-                flex-direction: row; /* 가로 배치 */
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 text-align: center;
-                padding: 1px;
-                gap: 2px;
+                padding: 0;
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 9px;
+                font-size: 8px; /* 폰트 최소화 */
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                max-width: 50%;
-                line-height: 1.1;
-                margin: 0;
+                width: 100%;
+                line-height: 1;
+                margin-bottom: 1px;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 10px;
+                font-size: 9px;
                 color: #ffd700; 
                 font-weight: 800;
-                line-height: 1.1;
+                line-height: 1;
             }
         }
 
@@ -240,7 +243,12 @@
             100% { opacity: 0; transform: translate(-50%, -150%) scale(1.0); }
         }
 
-        canvas { border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        /* 캔버스 터치 액션 제어 (반응성 향상) */
+        canvas { 
+            border-radius: 6px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+            touch-action: none; /* 브라우저 기본 터치 동작 차단 */
+        }
 
         input {
             background: rgba(0,0,0,0.3);
@@ -480,7 +488,7 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    // [블록 데이터 업데이트] 3x2, 2x3 추가
+    // [블록 데이터]
     const SHAPES_DATA = [
         { prob: 2, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
         { prob: 3, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
@@ -489,9 +497,9 @@
         { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, // 2x2
         
-        // [신규] 3x2, 2x3 (뚱뚱한 직사각형)
-        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1]], color: '#20B2AA' } }, // 3x2
-        { prob: 2, shape: { coords: [[0,0], [1,0], [0,1], [1,1], [0,2], [1,2]], color: '#20B2AA' } }, // 2x3
+        // 3x2, 2x3
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1]], color: '#20B2AA' } }, 
+        { prob: 2, shape: { coords: [[0,0], [1,0], [0,1], [1,1], [0,2], [1,2]], color: '#20B2AA' } },
 
         { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, 
         { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, 
@@ -522,6 +530,7 @@
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
     ];
 
+    // [럭키 세트]
     const LUCKY_SETS = [
         [
              { coords: [[0,0]], color: '#FF5733' },
@@ -606,9 +615,11 @@
             const canvas = slot.querySelector('canvas');
             if(!canvas) return;
             const rect = slot.getBoundingClientRect();
+            // 캔버스 크기 컨테이너에 맞춤
             canvas.width = rect.width - 4; 
             
             if (window.innerWidth <= 768 && !slot.classList.contains('me')) {
+                // 모바일 상대방: 정사각형 유지
                 canvas.height = canvas.width; 
             } else {
                 canvas.height = rect.height - 35;
@@ -622,6 +633,7 @@
     }
 
     function calcBoardMetrics(w, h) {
+        // [모바일] 게임판 비율 
         const isMobile = window.innerWidth <= 768;
         const ratio = isMobile ? 0.75 : 0.65;
         const maxBoardSize = Math.min(w, h * ratio);
@@ -713,7 +725,7 @@
         }
         const isCrisis = emptyCount < (GRID_SIZE*GRID_SIZE * 0.3); 
 
-        // [모바일] 블록 크기 축소
+        // [모바일] 블록 크기 축소 (0.45)
         const isMobile = window.innerWidth <= 768;
         const scale = isMobile ? 0.45 : 0.6;
 
@@ -1233,7 +1245,8 @@
     }
 
     function renderOpponents(opponents) {
-        const isMobile = window.innerWidth <= 768; 
+        // [중요] 모바일 감지 및 PC 렌더링 스킵 로직 제거 (모바일도 그리기 위해)
+        // const isMobile = window.innerWidth <= 768; <-- 이거 안씀
 
         for(let i=1; i<=MAX_OPPONENTS; i++) {
             const nameEl = document.getElementById(`op${i}-name`);
