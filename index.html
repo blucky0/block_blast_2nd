@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Final)</title>
+    <title>Puzzle Blast Online (Mobile Final v2)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,20 +66,20 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 높이 재조정] */
+        /* [모바일 최적화: 3열 스크롤 방식] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 2px;
-                gap: 4px;               
+                padding: 5px;
+                gap: 8px;               
             }
 
-            /* 내 슬롯: 하단 영역이 줄어든 만큼 다시 넓어짐 */
+            /* 내 슬롯: 55% 차지 (상단 확보) */
             #slot-me {
-                flex: 1; /* 남은 공간 모두 차지 */
+                flex: 0 0 55%;          
                 width: 100%;
                 min-height: 0;
                 margin-bottom: 0;
@@ -88,17 +88,21 @@
                 justify-content: center;
             }
 
-            /* 상대방 슬롯 컨테이너: 높이 96px (기존 대비 약 2/3) */
+            /* 상대방 슬롯 컨테이너: 나머지 공간 (스크롤 가능) */
             .opponents-container {
-                flex: 0 0 96px; 
+                flex: 1; 
                 display: grid;
-                grid-template-columns: repeat(5, 1fr); 
-                grid-template-rows: repeat(2, 1fr);    
-                gap: 2px;
+                grid-template-columns: repeat(3, 1fr); /* 3열로 큼직하게 */
+                grid-auto-rows: min-content; /* 내용물 크기에 맞춤 */
+                gap: 5px;
                 width: 100%;
+                overflow-y: auto; 
                 padding: 2px;
-                background: rgba(0,0,0,0.2); 
-                border-radius: 6px;
+                background: rgba(0,0,0,0.1); 
+                border-radius: 8px;
+                /* 스크롤바 디자인 */
+                scrollbar-width: thin;
+                scrollbar-color: #e94560 #1a1a2e;
             }
             
             /* 모바일에서 위치 강제 할당 해제 */
@@ -107,28 +111,28 @@
                 grid-area: auto !important;
             }
             
-            /* 상대방 명함 스타일 (미니 뷰 포함) */
+            /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
-                height: 100%; 
                 background: #252538;
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 3px;
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 6px;
                 display: flex; 
                 flex-direction: column;
-                justify-content: flex-start; /* 위에서부터 정렬 */
+                justify-content: space-between;
                 align-items: center;
-                min-height: 0; 
-                overflow: hidden;
+                padding: 4px;
+                aspect-ratio: 3/4; /* 명함 비율 고정 (세로형) */
             }
             
-            /* 모바일에서도 캔버스 표시! (작게) */
+            /* 모바일 캔버스: 정사각형 강제, 선명하게 */
             .player-slot:not(.me) canvas {
                 display: block !important;
-                width: 90%;
-                flex: 1; /* 남은 공간 채우기 */
-                margin-bottom: 2px;
-                background: #10101a; /* 캔버스 배경 어둡게 */
-                border-radius: 2px;
+                width: 100% !important;
+                aspect-ratio: 1/1; /* 정사각형 유지 */
+                height: auto !important;
+                background: #151520; 
+                border-radius: 4px;
+                margin-top: 2px;
             }
 
             .player-slot:not(.me) .slot-info {
@@ -136,29 +140,25 @@
                 width: 100%; 
                 height: auto;
                 display: flex;
-                flex-direction: row; /* 이름/점수 가로 배치 시도 */
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                gap: 3px;
-                padding: 2px 0;
-                background: rgba(0,0,0,0.2);
+                text-align: center;
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 8px; 
+                font-size: 10px; 
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                max-width: 45%;
-                line-height: 1;
-                margin: 0;
+                width: 100%;
+                margin-bottom: 2px;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 9px; 
+                font-size: 11px; 
                 color: #ffd700; 
                 font-weight: 800;
-                line-height: 1;
             }
         }
 
@@ -594,8 +594,21 @@
             const canvas = slot.querySelector('canvas');
             if(!canvas) return;
             const rect = slot.getBoundingClientRect();
-            canvas.width = rect.width - 8;
-            canvas.height = rect.height - 35; 
+            // 캔버스 크기를 컨테이너(slot)에 맞춤
+            canvas.width = rect.width - 4; 
+            // 높이는 가변적이므로 컨테이너 높이에서 텍스트 공간(약 30px)을 뺀 만큼
+            // 하지만 모바일에서는 1:1 비율을 유지하려 하므로 너비 기준 계산이 안전
+            // 일단 rect.height를 믿되, 모바일에서는 CSS가 높이를 제어함
+            
+            // PC: rect.height - 35
+            // Mobile: 100% - margin
+            if (window.innerWidth <= 768 && !slot.classList.contains('me')) {
+                // 모바일 상대방 슬롯: 너비 기준으로 정사각형 만들기
+                canvas.height = canvas.width; 
+            } else {
+                canvas.height = rect.height - 35;
+            }
+
             if (slot.id === 'slot-me') {
                 calcBoardMetrics(canvas.width, canvas.height);
                 repositionHand();
@@ -1216,7 +1229,8 @@
     }
 
     function renderOpponents(opponents) {
-        const isMobile = window.innerWidth <= 768; 
+        // [중요] 모바일 감지 및 PC 렌더링 스킵 로직 제거 (모바일도 그리기 위해)
+        // const isMobile = window.innerWidth <= 768; <-- 이거 안씀
 
         for(let i=1; i<=MAX_OPPONENTS; i++) {
             const nameEl = document.getElementById(`op${i}-name`);
@@ -1245,20 +1259,21 @@
             try {
                 const gridData = JSON.parse(opp.grid);
                 if(nameEl) nameEl.innerText = opp.userName || `Player ${slotNum+1}`;
-                
                 if(scoreEl) {
-                    if (isMobile) {
-                        scoreEl.innerText = `🏆 ${opp.highScore || 0}`;
-                    } else {
-                        const best = opp.highScore ? `(Best: ${opp.highScore})` : '';
-                        scoreEl.innerText = `Score: ${opp.score} ${best}`;
-                    }
+                     const best = opp.highScore ? `(Best: ${opp.highScore})` : '';
+                     // 모바일에서 공간 부족시 줄바꿈 처리됨 (CSS Flex)
+                     scoreEl.innerText = `Score: ${opp.score} ${best}`;
                 }
                 
-                // 모바일에서도 그리도록 변경 (isMobile 체크 제거)
-                const tempW = cvs.width, tempH = cvs.height;
-                const maxBoardSize = Math.min(tempW, tempH * 0.9);
+                // [수정] 모바일이든 PC든 무조건 캔버스 그림
+                // 다만 캔버스 내부 해상도가 작으므로 그에 맞춰 비율 조정
+                const tempW = cvs.width;
+                const tempH = cvs.height;
+                // 1:1 비율 유지하면서 꽉 차게 그리기
+                const maxBoardSize = Math.min(tempW, tempH * 0.95); 
                 const opCellSize = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
+                
+                // 중앙 정렬
                 const opBoardX = (tempW - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
                 const opBoardY = (tempH - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
                 
