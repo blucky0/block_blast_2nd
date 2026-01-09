@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Final v2)</title>
+    <title>Puzzle Blast Online (Mobile Layout v3)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,7 +66,7 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 3열 스크롤 방식] */
+        /* [모바일 최적화: 67% 확장] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
@@ -77,9 +77,9 @@
                 gap: 8px;               
             }
 
-            /* 내 슬롯: 55% 차지 (상단 확보) */
+            /* 내 슬롯: 67% 차지 (요청사항 반영) */
             #slot-me {
-                flex: 0 0 55%;          
+                flex: 0 0 67%;          
                 width: 100%;
                 min-height: 0;
                 margin-bottom: 0;
@@ -92,20 +92,18 @@
             .opponents-container {
                 flex: 1; 
                 display: grid;
-                grid-template-columns: repeat(3, 1fr); /* 3열로 큼직하게 */
-                grid-auto-rows: min-content; /* 내용물 크기에 맞춤 */
+                grid-template-columns: repeat(3, 1fr); /* 3열 */
+                grid-auto-rows: min-content; 
                 gap: 5px;
                 width: 100%;
                 overflow-y: auto; 
                 padding: 2px;
                 background: rgba(0,0,0,0.1); 
                 border-radius: 8px;
-                /* 스크롤바 디자인 */
                 scrollbar-width: thin;
                 scrollbar-color: #e94560 #1a1a2e;
             }
             
-            /* 모바일에서 위치 강제 할당 해제 */
             #slot-op1, #slot-op2, #slot-op3, #slot-op4, #slot-op5,
             #slot-op6, #slot-op7, #slot-op8, #slot-op9 {
                 grid-area: auto !important;
@@ -121,14 +119,13 @@
                 justify-content: space-between;
                 align-items: center;
                 padding: 4px;
-                aspect-ratio: 3/4; /* 명함 비율 고정 (세로형) */
+                aspect-ratio: 3/4; 
             }
             
-            /* 모바일 캔버스: 정사각형 강제, 선명하게 */
             .player-slot:not(.me) canvas {
                 display: block !important;
                 width: 100% !important;
-                aspect-ratio: 1/1; /* 정사각형 유지 */
+                aspect-ratio: 1/1; 
                 height: auto !important;
                 background: #151520; 
                 border-radius: 4px;
@@ -594,16 +591,9 @@
             const canvas = slot.querySelector('canvas');
             if(!canvas) return;
             const rect = slot.getBoundingClientRect();
-            // 캔버스 크기를 컨테이너(slot)에 맞춤
             canvas.width = rect.width - 4; 
-            // 높이는 가변적이므로 컨테이너 높이에서 텍스트 공간(약 30px)을 뺀 만큼
-            // 하지만 모바일에서는 1:1 비율을 유지하려 하므로 너비 기준 계산이 안전
-            // 일단 rect.height를 믿되, 모바일에서는 CSS가 높이를 제어함
             
-            // PC: rect.height - 35
-            // Mobile: 100% - margin
             if (window.innerWidth <= 768 && !slot.classList.contains('me')) {
-                // 모바일 상대방 슬롯: 너비 기준으로 정사각형 만들기
                 canvas.height = canvas.width; 
             } else {
                 canvas.height = rect.height - 35;
@@ -619,7 +609,7 @@
     function calcBoardMetrics(w, h) {
         // [모바일] 게임판 비율 
         const isMobile = window.innerWidth <= 768;
-        const ratio = isMobile ? 0.8 : 0.65;
+        const ratio = isMobile ? 0.75 : 0.65;
         const maxBoardSize = Math.min(w, h * ratio);
         
         CELL_SIZE = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
@@ -1229,8 +1219,7 @@
     }
 
     function renderOpponents(opponents) {
-        // [중요] 모바일 감지 및 PC 렌더링 스킵 로직 제거 (모바일도 그리기 위해)
-        // const isMobile = window.innerWidth <= 768; <-- 이거 안씀
+        const isMobile = window.innerWidth <= 768; 
 
         for(let i=1; i<=MAX_OPPONENTS; i++) {
             const nameEl = document.getElementById(`op${i}-name`);
