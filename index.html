@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Smart Rescue)</title>
+    <title>Puzzle Blast Online (Leaderboard)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,32 +66,41 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
+        /* [모바일 최적화: 레이아웃 조정] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 8px;
-                gap: 8px;               
+                padding: 5px; /* 패딩 축소 */
+                gap: 5px;               
             }
+
+            /* 내 슬롯: 화면의 70% 정도 차지하게 (게임판 확대) */
             #slot-me {
-                flex: 0 0 65%;          
+                flex: 7; /* flex-grow 사용 */
                 width: 100%;
                 min-height: 0;
+                margin-bottom: 5px;
             }
+
+            /* 상대방 슬롯 컨테이너: 나머지 공간 */
             .opponents-container {
-                flex: 1;
+                flex: 3; /* flex-grow 사용 */
                 display: grid;
                 grid-template-columns: repeat(3, 1fr); 
-                grid-auto-rows: 70px; 
-                gap: 6px;
+                grid-auto-rows: 60px; /* 명함 높이 고정 */
+                gap: 4px;
                 width: 100%;
-                overflow-y: auto; 
-                padding-bottom: 20px;
-                scrollbar-width: thin;
-                scrollbar-color: #e94560 #1a1a2e;
+                overflow-y: auto; /* 스크롤 필수 */
+                padding-bottom: 10px;
+                background: rgba(0,0,0,0.2); /* 영역 구분용 */
+                border-radius: 8px;
+                padding: 5px;
             }
+            
+            /* 상대방 명함 스타일 */
             .player-slot:not(.me) {
                 height: 100%; 
                 background: #252538;
@@ -102,16 +111,19 @@
                 justify-content: center;
                 align-items: center;
             }
+            
             .player-slot:not(.me) canvas { display: none !important; }
+
             .player-slot:not(.me) .slot-info {
                 position: static; 
                 width: auto; height: auto;
                 text-align: center;
                 pointer-events: none;
             }
+
             .player-slot:not(.me) .player-name { 
                 font-size: 11px; 
-                margin-bottom: 4px;
+                margin-bottom: 2px;
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
@@ -239,9 +251,53 @@
             z-index: 30; display: none;
         }
         .game-over-overlay.show { display: flex; }
+
+        /* 순위표 모달 */
+        #leaderboard-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        #leaderboard-modal.show { display: flex; }
+        .lb-content {
+            background: #1f2b4d;
+            border: 2px solid #e94560;
+            border-radius: 12px;
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: center;
+            color: white;
+        }
+        .lb-title { font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #ffd700; }
+        .lb-list { text-align: left; margin-bottom: 20px; }
+        .lb-item {
+            display: flex; justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .lb-rank { font-weight: bold; width: 30px; color: #e94560; }
+        .lb-name { flex: 1; margin-left: 10px; }
+        .lb-score { font-weight: bold; color: #00ff88; }
     </style>
 </head>
 <body>
+
+    <!-- 순위표 모달 -->
+    <div id="leaderboard-modal" onclick="closeLeaderboard()">
+        <div class="lb-content" onclick="event.stopPropagation()">
+            <div class="lb-title">🏆 TOP 10 PLAYERS</div>
+            <div class="lb-list" id="leaderboard-list">
+                <!-- JS로 채워짐 -->
+                <div style="text-align:center; padding:20px;">Loading...</div>
+            </div>
+            <button class="btn" onclick="closeLeaderboard()">CLOSE</button>
+        </div>
+    </div>
 
     <div id="header-bar">
         <div style="display:flex; align-items:center; gap:8px;">
@@ -275,6 +331,7 @@
         </div>
 
         <div class="opponents-container">
+            <!-- Opponents 2~10 -->
             <div class="player-slot" id="slot-op1"><div class="slot-info"><div class="player-name" id="op1-name">Player 2</div><div class="player-score" id="op1-score">Waiting</div></div><canvas id="op1Canvas"></canvas></div>
             <div class="player-slot" id="slot-op2"><div class="slot-info"><div class="player-name" id="op2-name">Player 3</div><div class="player-score" id="op2-score">Waiting</div></div><canvas id="op2Canvas"></canvas></div>
             <div class="player-slot" id="slot-op3"><div class="slot-info"><div class="player-name" id="op3-name">Player 4</div><div class="player-score" id="op3-score">Waiting</div></div><canvas id="op3Canvas"></canvas></div>
@@ -346,12 +403,14 @@
         const now = audioCtx.currentTime;
 
         if (type === 'clear') {
-            const baseFreq = 400 + (Math.min(comboCount,10) * 60);
+            const baseFreq = 523.25 + (Math.min(comboCount,10) * 50); // 높은 도(C5)부터 시작
             osc.frequency.setValueAtTime(baseFreq, now);
-            osc.frequency.exponentialRampToValueAtTime(baseFreq + 300, now + 0.2);
-            osc.type = 'sine';
-            gain.gain.setValueAtTime(0.4, now);
+            osc.frequency.linearRampToValueAtTime(baseFreq + 300, now + 0.1); // 띵~ 느낌
+            osc.type = 'sine'; // 맑은 소리
+            
+            gain.gain.setValueAtTime(0.3, now);
             gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            
             osc.start(now);
             osc.stop(now + 0.4);
         } else if (type === 'allclear') {
@@ -395,33 +454,32 @@
     const GRID_SIZE = 8;
     const MAX_OPPONENTS = 9; 
     
-    // [블록 데이터 업데이트] 2x2 꺾임 4종 모두 포함
+    // [확률 재조정: 작은 것 줄이고 골고루]
     const SHAPES_DATA = [
-        { prob: 3, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
-        { prob: 4, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
-        { prob: 4, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
+        { prob: 2, shape: { coords: [[0,0]], color: '#FF5733' } }, // 1x1
+        { prob: 3, shape: { coords: [[0,0], [1,0]], color: '#33FF57' } }, // 1x2
+        { prob: 3, shape: { coords: [[0,0], [0,1]], color: '#33FF57' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [2,0]], color: '#3357FF' } }, // 1x3
         { prob: 4, shape: { coords: [[0,0], [0,1], [0,2]], color: '#3357FF' } }, 
         { prob: 4, shape: { coords: [[0,0], [1,0], [0,1], [1,1]], color: '#F3FF33' } }, // 2x2
         
-        // [작은 꺾임 (3칸) - 4방향]
-        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, // ┌
-        { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, // ┐ (모양상)
-        { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } }, // └
-        { prob: 3, shape: { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' } }, // ┘
+        { prob: 3, shape: { coords: [[0,0], [1,0], [0,1]], color: '#33FFF3' } }, // 3칸 ㄱ
+        { prob: 3, shape: { coords: [[0,0], [1,0], [1,1]], color: '#33FFF3' } }, 
+        { prob: 3, shape: { coords: [[0,0], [0,1], [1,1]], color: '#33FFF3' } }, 
+        { prob: 3, shape: { coords: [[1,0], [0,1], [1,1]], color: '#33FFF3' } }, 
         
-        // [큰 꺾임 (5칸) - 4방향]
-        { prob: 2, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } }, // ┏
-        { prob: 2, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' } }, // ┓
-        { prob: 2, isHard: true, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } }, // ┗
-        { prob: 2, isHard: true, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } }, // ┛
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [0,2]], color: '#FF3333' } }, // 5칸 ㄱ
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [2,1], [2,2]], color: '#FF3333' } }, 
+        { prob: 3, shape: { coords: [[0,0], [0,1], [0,2], [1,2], [2,2]], color: '#FF3333' } }, 
+        { prob: 3, shape: { coords: [[2,0], [2,1], [2,2], [1,2], [0,2]], color: '#FF3333' } }, 
 
-        { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, // 3x3
+        // 3x3: 초반 제한 해제 (그냥 나옴)
+        { prob: 3, shape: { coords: [[0,0], [1,0], [2,0], [0,1], [1,1], [2,1], [0,2], [1,2], [2,2]], color: '#8C33FF' } }, 
         
         { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0]], color: '#FF33A1' } }, // 1x4
         { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [0,3]], color: '#FF33A1' } }, 
-        { prob: 1, isHard: true, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, // 1x5
-        { prob: 1, isHard: true, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
+        { prob: 2, shape: { coords: [[0,0], [1,0], [2,0], [3,0], [4,0]], color: '#FF8C33' } }, // 1x5
+        { prob: 2, shape: { coords: [[0,0], [0,1], [0,2], [0,3], [0,4]], color: '#FF8C33' } }, 
         
         { prob: 1, shape: { coords: [[0,0], [1,1]], color: '#AAAAAA' } }, // 대각
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
@@ -481,7 +539,6 @@
             }
         });
 
-        // 사운드 활성화 트리거
         ['mousedown', 'touchstart', 'keydown', 'click'].forEach(evt => 
             document.addEventListener(evt, initAudio, { once: true })
         );
@@ -523,11 +580,17 @@
     }
 
     function calcBoardMetrics(w, h) {
-        const maxBoardSize = Math.min(w, h * 0.65);
+        // [모바일] 게임판 비율 확대 (0.65 -> 0.85)
+        const isMobile = window.innerWidth <= 768;
+        const ratio = isMobile ? 0.85 : 0.65;
+        const maxBoardSize = Math.min(w, h * ratio);
+        
         CELL_SIZE = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
         const totalBoardSize = (CELL_SIZE * GRID_SIZE) + (CELL_GAP * (GRID_SIZE - 1));
+        
         boardX = (w - totalBoardSize) / 2;
-        boardY = 20;
+        // [모바일] 상단 여백 축소
+        boardY = isMobile ? 10 : 20; 
     }
 
     function repositionHand() {
@@ -546,44 +609,33 @@
     }
 
     function getRandomShape() {
-        const isEasyMode = myScore < 2000;
-        const availableShapes = isEasyMode 
-            ? SHAPES_DATA.filter(s => !s.isHard) 
-            : SHAPES_DATA;
-
-        const totalProb = availableShapes.reduce((sum, item) => sum + item.prob, 0);
+        // 2000점 미만 제한 제거 (항상 모든 블록 등장)
+        const totalProb = SHAPES_DATA.reduce((sum, item) => sum + item.prob, 0);
         let random = Math.random() * totalProb;
         
-        for (const item of availableShapes) {
+        for (const item of SHAPES_DATA) {
             if (random < item.prob) {
                 return item.shape;
             }
             random -= item.prob;
         }
-        return availableShapes[0].shape; 
+        return SHAPES_DATA[0].shape; 
     }
 
     // [스마트 스폰] 위기 상황에서 '뚫어주는' 블록 찾기
     function getSolutionSet() {
-        // 현재 보드에 놓을 수 있는 블록(해결사)을 찾는다.
-        // 우선 쉬운 블록들(1~4칸)을 후보로 선정
-        const easyCandidates = SHAPES_DATA.filter(s => !s.isHard && s.shape.coords.length <= 4)
+        const easyCandidates = SHAPES_DATA.filter(s => s.shape.coords.length <= 4)
                                           .map(s => s.shape);
-        // 무작위로 섞음
         easyCandidates.sort(() => Math.random() - 0.5);
 
         let solverBlock = null;
         let hardBlock = null;
 
-        // 1. 해결사 블록 찾기: 놓으면 줄이 터지는 블록 찾기 (우선순위)
-        //    또는 그냥 놓을 수 있는 블록이라도 찾기
         for (let shape of easyCandidates) {
             for (let r=0; r<GRID_SIZE; r++) {
                 for (let c=0; c<GRID_SIZE; c++) {
                     if (canPlace(shape, r, c)) {
                         solverBlock = shape;
-                        // 만약 이게 줄을 터뜨린다면 더 좋음 (여기선 단순 가용성만 체크)
-                        // 더 깊은 시뮬레이션은 성능상 생략하고, '놓을 수 있는 것'을 확보
                         break; 
                     }
                 }
@@ -592,28 +644,22 @@
             if (solverBlock) break;
         }
 
-        // 2. 만약 해결사 블록을 찾았다면, Hard 블록 하나와 섞어서 줌 (도전과제)
-        //    단, 위기가 너무 심하면(빈칸 10% 미만) 쉬운거만 줌
         let emptyCount = 0;
         for(let r=0; r<GRID_SIZE; r++) for(let c=0; c<GRID_SIZE; c++) if(myGrid[r][c] === null) emptyCount++;
         
         if (solverBlock && emptyCount > 8) {
-             // 어려운 블록 하나 끼워넣기 (3x3 등)
-             const hardCandidates = SHAPES_DATA.filter(s => s.isHard).map(s => s.shape);
+             const hardCandidates = SHAPES_DATA.filter(s => s.shape.coords.length >= 5).map(s => s.shape);
              hardBlock = hardCandidates[Math.floor(Math.random() * hardCandidates.length)];
              
-             // 결과: [해결사, 어려운거, 쉬운거]
              return [
                  solverBlock, 
                  hardBlock, 
                  easyCandidates[Math.floor(Math.random() * easyCandidates.length)]
              ];
         } else if (solverBlock) {
-            // 정말 위기면 쉬운거 3개
             return [solverBlock, easyCandidates[0], easyCandidates[1]];
         }
         
-        // 답이 없으면 1x1 3개 (최후의 수단)
         const oneByOne = SHAPES_DATA[0].shape;
         return [oneByOne, oneByOne, oneByOne];
     }
@@ -630,7 +676,6 @@
         const isCrisis = emptyCount < (GRID_SIZE*GRID_SIZE * 0.3); 
 
         if (isCrisis) {
-            // 위기 상황: 스마트 솔루션 세트 제공
             const solutionSet = getSolutionSet();
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
@@ -640,7 +685,6 @@
                 });
             }
         } else if (Math.random() < 0.15) {
-            // 럭키 세트
             const luckySet = LUCKY_SETS[Math.floor(Math.random() * LUCKY_SETS.length)];
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
@@ -650,7 +694,6 @@
                 });
             }
         } else {
-            // 일반 생성
             for(let i=0; i<3; i++) {
                 handBlocks.push({ 
                     shape: getRandomShape(), 
@@ -985,6 +1028,63 @@
         }
     }
 
+    // [순위표 표시]
+    async function showLeaderboard() {
+        const modal = document.getElementById('leaderboard-modal');
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
+        modal.classList.add('show');
+
+        try {
+            // 전체 플레이어 가져오기
+            const snapshot = await db.collection(`artifacts/${fixedAppId}/public/data/block_puzzle_players`).get();
+            let allPlayers = [];
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                if(d.highScore > 0) {
+                    allPlayers.push({
+                        name: d.userName || `User ${d.userId.substr(0,4)}`,
+                        score: d.highScore
+                    });
+                }
+            });
+
+            // 점수 내림차순 정렬
+            allPlayers.sort((a, b) => b.score - a.score);
+            // TOP 10만
+            const top10 = allPlayers.slice(0, 10);
+
+            let html = '';
+            if (top10.length === 0) {
+                html = '<div style="text-align:center; padding:10px;">No records yet</div>';
+            } else {
+                top10.forEach((p, i) => {
+                    let rankColor = '#fff';
+                    if(i===0) rankColor='#ffd700'; // 금
+                    else if(i===1) rankColor='#c0c0c0'; // 은
+                    else if(i===2) rankColor='#cd7f32'; // 동
+                    
+                    html += `
+                        <div class="lb-item">
+                            <div class="lb-rank" style="color:${rankColor}">${i+1}</div>
+                            <div class="lb-name">${p.name}</div>
+                            <div class="lb-score">${p.score}</div>
+                        </div>
+                    `;
+                });
+            }
+            list.innerHTML = html;
+
+        } catch (e) {
+            console.error("Leaderboard error:", e);
+            list.innerHTML = '<div style="text-align:center;">Failed to load</div>';
+        }
+    }
+
+    function closeLeaderboard() {
+        document.getElementById('leaderboard-modal').classList.remove('show');
+    }
+
     async function joinRoom() {
         if (!isFirebaseReady) {
             alert("⚠️ Firebase Config is missing.");
@@ -1010,6 +1110,9 @@
         badge.className = "status-badge status-online";
         
         await syncState();
+
+        // 게임 시작 시(방 조인 시) 순위표 한 번 보여주기
+        showLeaderboard();
 
         if(unsubscribeRoom) unsubscribeRoom();
 
