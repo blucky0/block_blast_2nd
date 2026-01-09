@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Fix Final)</title>
+    <title>Puzzle Blast Online (Mobile Final)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -55,7 +55,6 @@
                 "me op7 op8 op9";
         }
 
-        /* PC용 Grid Area 할당 */
         #slot-me { grid-area: me; }
         #slot-op1 { grid-area: op1; }
         #slot-op2 { grid-area: op2; }
@@ -67,7 +66,7 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 절대 겹침 방지 레이아웃] */
+        /* [모바일 최적화: 높이 재조정] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
@@ -75,12 +74,12 @@
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
                 padding: 2px;
-                gap: 5px;               
+                gap: 4px;               
             }
 
-            /* 내 슬롯: 사용자가 만족한 비율 유지 (60%) */
+            /* 내 슬롯: 하단 영역이 줄어든 만큼 다시 넓어짐 */
             #slot-me {
-                flex: 0 0 60%;          
+                flex: 1; /* 남은 공간 모두 차지 */
                 width: 100%;
                 min-height: 0;
                 margin-bottom: 0;
@@ -89,68 +88,77 @@
                 justify-content: center;
             }
 
-            /* 상대방 슬롯 컨테이너: 5열 2행 (겹침 해결 핵심) */
+            /* 상대방 슬롯 컨테이너: 높이 96px (기존 대비 약 2/3) */
             .opponents-container {
-                flex: 1; /* 남은 공간 채움 */
+                flex: 0 0 96px; 
                 display: grid;
-                grid-template-columns: repeat(5, 1fr); /* 가로 5칸 */
-                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
-                gap: 3px;
+                grid-template-columns: repeat(5, 1fr); 
+                grid-template-rows: repeat(2, 1fr);    
+                gap: 2px;
                 width: 100%;
-                padding: 3px;
+                padding: 2px;
                 background: rgba(0,0,0,0.2); 
-                border-radius: 8px;
-                overflow: hidden;
+                border-radius: 6px;
             }
             
-            /* [중요] 모바일에서는 PC용 위치 강제 할당을 해제하여 순서대로 배치 */
+            /* 모바일에서 위치 강제 할당 해제 */
             #slot-op1, #slot-op2, #slot-op3, #slot-op4, #slot-op5,
             #slot-op6, #slot-op7, #slot-op8, #slot-op9 {
                 grid-area: auto !important;
             }
             
-            /* 상대방 명함 스타일 */
+            /* 상대방 명함 스타일 (미니 뷰 포함) */
             .player-slot:not(.me) {
                 height: 100%; 
                 background: #252538;
-                border: 1px solid rgba(255,255,255,0.15);
-                border-radius: 4px;
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 3px;
                 display: flex; 
                 flex-direction: column;
-                justify-content: center;
+                justify-content: flex-start; /* 위에서부터 정렬 */
                 align-items: center;
                 min-height: 0; 
                 overflow: hidden;
             }
             
-            .player-slot:not(.me) canvas { display: none !important; }
+            /* 모바일에서도 캔버스 표시! (작게) */
+            .player-slot:not(.me) canvas {
+                display: block !important;
+                width: 90%;
+                flex: 1; /* 남은 공간 채우기 */
+                margin-bottom: 2px;
+                background: #10101a; /* 캔버스 배경 어둡게 */
+                border-radius: 2px;
+            }
 
             .player-slot:not(.me) .slot-info {
                 position: static; 
-                width: 100%; height: 100%;
+                width: 100%; 
+                height: auto;
                 display: flex;
-                flex-direction: column;
+                flex-direction: row; /* 이름/점수 가로 배치 시도 */
                 justify-content: center;
                 align-items: center;
-                text-align: center;
-                padding: 1px;
+                gap: 3px;
+                padding: 2px 0;
+                background: rgba(0,0,0,0.2);
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 10px;
-                margin-bottom: 1px;
+                font-size: 8px; 
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                width: 100%;
-                line-height: 1.2;
+                max-width: 45%;
+                line-height: 1;
+                margin: 0;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 11px;
+                font-size: 9px; 
                 color: #ffd700; 
                 font-weight: 800;
-                line-height: 1.2;
+                line-height: 1;
             }
         }
 
@@ -1247,22 +1255,21 @@
                     }
                 }
                 
-                if (!isMobile) {
-                    const tempW = cvs.width, tempH = cvs.height;
-                    const maxBoardSize = Math.min(tempW, tempH * 0.9);
-                    const opCellSize = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
-                    const opBoardX = (tempW - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
-                    const opBoardY = (tempH - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
-                    
-                    ctx.fillStyle = '#16213e'; ctx.fillRect(0,0,tempW, tempH);
-                    for(let r=0; r<GRID_SIZE; r++) {
-                        for(let c=0; c<GRID_SIZE; c++) {
-                            const x = opBoardX + c * (opCellSize + CELL_GAP);
-                            const y = opBoardY + r * (opCellSize + CELL_GAP);
-                            ctx.fillStyle = '#0f1526'; ctx.fillRect(x, y, opCellSize, opCellSize);
-                            if(gridData[r][c]) {
-                                ctx.fillStyle = gridData[r][c]; ctx.fillRect(x, y, opCellSize, opCellSize);
-                            }
+                // 모바일에서도 그리도록 변경 (isMobile 체크 제거)
+                const tempW = cvs.width, tempH = cvs.height;
+                const maxBoardSize = Math.min(tempW, tempH * 0.9);
+                const opCellSize = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
+                const opBoardX = (tempW - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
+                const opBoardY = (tempH - (opCellSize * GRID_SIZE + CELL_GAP * (GRID_SIZE - 1))) / 2;
+                
+                ctx.fillStyle = '#16213e'; ctx.fillRect(0,0,tempW, tempH);
+                for(let r=0; r<GRID_SIZE; r++) {
+                    for(let c=0; c<GRID_SIZE; c++) {
+                        const x = opBoardX + c * (opCellSize + CELL_GAP);
+                        const y = opBoardY + r * (opCellSize + CELL_GAP);
+                        ctx.fillStyle = '#0f1526'; ctx.fillRect(x, y, opCellSize, opCellSize);
+                        if(gridData[r][c]) {
+                            ctx.fillStyle = gridData[r][c]; ctx.fillRect(x, y, opCellSize, opCellSize);
                         }
                     }
                 }
