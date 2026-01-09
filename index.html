@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Final Mobile Fix)</title>
+    <title>Puzzle Blast Online (Mobile Layout Fix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -66,35 +66,39 @@
         #slot-op8 { grid-area: op8; }
         #slot-op9 { grid-area: op9; }
 
-        /* [모바일 최적화: 5열 배치 & 공간 확보] */
+        /* [모바일 최적화: 절대 겹침 방지 레이아웃] */
         @media (max-width: 768px) {
             #game-grid {
                 display: flex;           
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 5px;
+                padding: 2px; /* 좌우 여백 최소화 */
                 gap: 5px;               
             }
 
-            /* 내 슬롯: 60%로 줄여서 하단 블록 공간 확보 */
+            /* 내 슬롯: 남은 공간 모두 차지 (flex: 1) */
             #slot-me {
-                flex: 0 0 60%;          
+                flex: 1; 
                 width: 100%;
-                min-height: 0;
-                margin-bottom: 0; /* 여백 제거 */
+                min-height: 0; /* flex box 내부 스크롤 방지 */
+                margin-bottom: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: center; /* 캔버스 수직 중앙 정렬 */
             }
 
-            /* 상대방 슬롯 컨테이너: 5열 2행 (스크롤 제거) */
+            /* 상대방 슬롯 컨테이너: 높이 고정 (약 130px) */
             .opponents-container {
-                flex: 1; /* 나머지 공간 꽉 채움 (약 40%) */
+                flex: 0 0 130px; /* 고정 높이 할당 (겹침 원천 봉쇄) */
                 display: grid;
-                grid-template-columns: repeat(5, 1fr); /* 가로 5개 */
-                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
+                grid-template-columns: repeat(5, 1fr); /* 5열 */
+                grid-template-rows: repeat(2, 1fr);    /* 2행 */
                 gap: 3px;
                 width: 100%;
-                overflow: hidden; /* 스크롤 없음 */
-                padding-bottom: 5px;
+                padding: 3px;
+                background: rgba(0,0,0,0.2); 
+                border-radius: 8px;
             }
             
             /* 상대방 명함 스타일 */
@@ -107,7 +111,8 @@
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                min-height: 0; /* 최소 높이 제한 해제 */
+                min-height: 0; 
+                overflow: hidden;
             }
             
             .player-slot:not(.me) canvas { display: none !important; }
@@ -124,17 +129,17 @@
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 10px; /* 폰트 더 작게 */
+                font-size: 9px; /* 폰트 최적화 */
                 margin-bottom: 1px;
                 color: #ccc;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                width: 95%;
+                width: 100%;
                 line-height: 1.2;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 11px; /* 폰트 더 작게 */
+                font-size: 10px; 
                 color: #ffd700; 
                 font-weight: 800;
                 line-height: 1.2;
@@ -488,6 +493,7 @@
         { prob: 1, shape: { coords: [[0,1], [1,0]], color: '#AAAAAA' } }
     ];
 
+    // [럭키 세트]
     const LUCKY_SETS = [
         [
              { coords: [[0,0]], color: '#FF5733' },
@@ -582,9 +588,9 @@
     }
 
     function calcBoardMetrics(w, h) {
-        // [모바일] 비율 축소 및 상단 여백 조정
+        // [모바일] 게임판 비율 
         const isMobile = window.innerWidth <= 768;
-        const ratio = isMobile ? 0.75 : 0.65;
+        const ratio = isMobile ? 0.8 : 0.65;
         const maxBoardSize = Math.min(w, h * ratio);
         
         CELL_SIZE = (maxBoardSize - (CELL_GAP * (GRID_SIZE - 1))) / GRID_SIZE;
