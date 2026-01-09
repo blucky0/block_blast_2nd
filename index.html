@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Puzzle Blast Online (Mobile Layout Fix)</title>
+    <title>Puzzle Blast Online (Mobile Fix Final)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Firebase SDK (Compat Version) -->
@@ -55,6 +55,7 @@
                 "me op7 op8 op9";
         }
 
+        /* PC용 Grid Area 할당 */
         #slot-me { grid-area: me; }
         #slot-op1 { grid-area: op1; }
         #slot-op2 { grid-area: op2; }
@@ -73,32 +74,39 @@
                 flex-direction: column;  
                 height: calc(100dvh - 50px); 
                 overflow: hidden;        
-                padding: 2px; /* 좌우 여백 최소화 */
+                padding: 2px;
                 gap: 5px;               
             }
 
-            /* 내 슬롯: 남은 공간 모두 차지 (flex: 1) */
+            /* 내 슬롯: 사용자가 만족한 비율 유지 (60%) */
             #slot-me {
-                flex: 1; 
+                flex: 0 0 60%;          
                 width: 100%;
-                min-height: 0; /* flex box 내부 스크롤 방지 */
+                min-height: 0;
                 margin-bottom: 0;
                 display: flex;
                 flex-direction: column;
-                justify-content: center; /* 캔버스 수직 중앙 정렬 */
+                justify-content: center;
             }
 
-            /* 상대방 슬롯 컨테이너: 높이 고정 (약 130px) */
+            /* 상대방 슬롯 컨테이너: 5열 2행 (겹침 해결 핵심) */
             .opponents-container {
-                flex: 0 0 130px; /* 고정 높이 할당 (겹침 원천 봉쇄) */
+                flex: 1; /* 남은 공간 채움 */
                 display: grid;
-                grid-template-columns: repeat(5, 1fr); /* 5열 */
-                grid-template-rows: repeat(2, 1fr);    /* 2행 */
+                grid-template-columns: repeat(5, 1fr); /* 가로 5칸 */
+                grid-template-rows: repeat(2, 1fr);    /* 세로 2줄 */
                 gap: 3px;
                 width: 100%;
                 padding: 3px;
                 background: rgba(0,0,0,0.2); 
                 border-radius: 8px;
+                overflow: hidden;
+            }
+            
+            /* [중요] 모바일에서는 PC용 위치 강제 할당을 해제하여 순서대로 배치 */
+            #slot-op1, #slot-op2, #slot-op3, #slot-op4, #slot-op5,
+            #slot-op6, #slot-op7, #slot-op8, #slot-op9 {
+                grid-area: auto !important;
             }
             
             /* 상대방 명함 스타일 */
@@ -129,7 +137,7 @@
             }
 
             .player-slot:not(.me) .player-name { 
-                font-size: 9px; /* 폰트 최적화 */
+                font-size: 10px;
                 margin-bottom: 1px;
                 color: #ccc;
                 white-space: nowrap;
@@ -139,7 +147,7 @@
                 line-height: 1.2;
             }
             .player-slot:not(.me) .player-score { 
-                font-size: 10px; 
+                font-size: 11px;
                 color: #ffd700; 
                 font-weight: 800;
                 line-height: 1.2;
